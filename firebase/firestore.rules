@@ -1,0 +1,72 @@
+rules_version = '2';
+
+// Firestore security rules — SERVER-SIDE enforcement of the perimeter model.
+// The UI hides inaccessible tasks behind meta-tasks; these rules guarantee
+// the underlying data is unreadable outside a member's perimeter.
+//
+// Storage shape note: in Firestore, `perimeters` is persisted as a MAP keyed
+// by member uid — { uid: { role: 'owner'|'editor'|'viewer', task_ids: [...] } } —
+// because the rules language cannot search inside arrays of objects. The
+// backend converts the Pydantic `list[Perimeter]` to this map on write.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function perimeterOf(projectData) {
+      return projectData.perimeters[request.auth.uid];
+    }
+
+    function isProjectMember(projectData) {
+      return signedIn() && (request.auth.uid in projectData.perimeters);
+    }
+
+    function isProjectOwner(projectData) {
+      return isProjectMember(projectData)
+        && perimeterOf(projectData).role == 'owner';
+    }
+
+    // Projects: readable by any perimeter member, writable by owners.
+    match /projects/{projectId} {
+      allow read: if isProjectMember(resource.data);
+      allow create: if signedIn()
+        // The creator must register themselves as owner of the new project.
+        && (request.auth.uid in request.resource.data.perimeters)
+        && request.resource.data.perimeters[request.auth.uid].role == 'owner';
+      allow update, delete: if isProjectOwner(resource.data);
+
+      // Tasks: readable ONLY when listed in the member's perimeter.
+      // Tasks outside the perimeter are simply not readable — the client
+      // renders meta-task placeholders from the flow structure instead.
+      match /tasks/{taskId} {
+        allow read: if signedIn()
+          && (request.auth.uid in
+              get(/databases/$(database)/documents/projects/$(projectId)).data.perimeters)
+          && (taskId in
+              get(/databases/$(database)/documents/projects/$(projectId))
+                .data.perimeters[request.auth.uid].task_ids);
+        // Only the backend (Admin SDK, which bypasses rules) writes task state.
+        allow write: if false;
+      }
+    }
+
+    // Agent profiles are public inside the app (they are the OS desktop).
+    match /agents/{agentId} {
+      allow read: if signedIn();
+      allow write: if false; // managed by the backend only
+    }
+
+    // Live work events: readable by authenticated users, written by backend.
+    match /work_events/{eventId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

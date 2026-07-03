@@ -1,0 +1,173 @@
+/**
+ * FluxView — the end-to-end agent flow of the selected project.
+ *
+ * Vertical, top-down DAG (design rule inherited from KOMAÏ Coding): each node
+ * is a contracted task assigned to an agent. Selecting a node opens the
+ * split detail panel showing its TaskSpecification (contract), input, output
+ * and ConformityReport in real time.
+ *
+ * PERIMETERS: tasks outside the current user's perimeter are rendered as
+ * META-TASKS — anonymous structural placeholders that reveal only the shape
+ * of the project before/after/between the tasks the user owns.
+ */
+import React, { useState } from 'react';
+import { ArrowDown, EyeOff, Play, Loader2 } from 'lucide-react';
+import { useApp } from '@/contexts/AppContext';
+import { Panel, MicroLabel, StatusPill, CodeBlock } from '@/components/ui/Glass';
+import type { TaskNode } from '@/core/types';
+
+const TaskDetail: React.FC<{ task: TaskNode }> = ({ task }) => {
+  const { theme, t, agents } = useApp();
+  const agent = agents.find((a) => a.id === task.agentId);
+  const verdictLabel = {
+    conform: t.verdictConform,
+    'non-conform': t.verdictNonConform,
+    pending: t.verdictPending,
+  };
+  return (
+    <Panel className="p-5 space-y-4 animate-fade-up">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className={`font-bold text-sm uppercase tracking-wide ${theme.primaryText}`}>{task.title}</h3>
+        <StatusPill status={task.status} />
+      </div>
+
+      <div>
+        <MicroLabel className="mb-1">{t.taskSpec}</MicroLabel>
+        <p className={`text-sm leading-relaxed ${theme.secondaryText}`}>{task.spec.objective}</p>
+        <ul className={`list-disc pl-5 mt-1 text-xs space-y-0.5 ${theme.mutedText}`}>
+          {task.spec.constraints.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+        <p className={`text-xs mt-1 font-mono ${theme.mutedText}`}>
+          {t.deliverable}: {task.spec.deliverableFormat} · {agent?.name}
+        </p>
+      </div>
+
+      <div>
+        <MicroLabel className="mb-1">{t.taskInput}</MicroLabel>
+        <p className={`text-sm ${theme.secondaryText}`}>{task.input}</p>
+      </div>
+
+      {task.output && (
+        <div>
+          <MicroLabel className="mb-1">{t.taskOutput}</MicroLabel>
+          <p className={`text-sm leading-relaxed ${theme.secondaryText}`}>{task.output.summary}</p>
+          <p className={`text-xs mt-1 font-mono ${theme.mutedText}`}>
+            {t.artifacts}: {task.output.artifacts.join(', ')} · {task.output.tokensUsed.toLocaleString()} {t.tokens}
+          </p>
+        </div>
+      )}
+
+      {task.conformity && (
+        <div className="space-y-2">
+          <MicroLabel>{t.conformityReport}</MicroLabel>
+          <p className={`text-sm font-semibold ${theme.primaryText}`}>
+            {verdictLabel[task.conformity.verdict]}
+            {task.conformity.verdict !== 'pending' && ` — ${t.score}: ${task.conformity.score}/100`}
+            <span className={`ml-2 text-xs font-mono font-normal ${theme.mutedText}`}>
+              {t.judge}: {task.conformity.judgeModel}
+            </span>
+          </p>
+          {task.conformity.criteria.length > 0 && (
+            <CodeBlock label={t.criteria}>
+              {task.conformity.criteria
+                .map((c) => `${c.passed ? '✔' : '✘'} ${c.name} — ${c.comment}`)
+                .join('\n')}
+            </CodeBlock>
+          )}
+          {task.conformity.recommendations.length > 0 && (
+            <ul className={`list-disc pl-5 text-xs space-y-0.5 ${theme.mutedText}`}>
+              {task.conformity.recommendations.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </Panel>
+  );
+};
+
+const FluxView: React.FC = () => {
+  const { theme, t, visibleTasks, agents, selectedProjectId, runProjectFlow, isFlowRunning } = useApp();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  if (!selectedProjectId) {
+    return <p className={`text-center py-16 text-sm ${theme.mutedText}`}>{t.createProjectFirst}</p>;
+  }
+
+  const selectedTask = visibleTasks.find((task) => task.id === selectedTaskId && task.accessible);
+
+  return (
+    <section aria-label={t.flux} className="w-full max-w-5xl mx-auto px-4 py-6 animate-fade-up">
+      <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
+        <MicroLabel>{t.flux}</MicroLabel>
+        <button
+          onClick={runProjectFlow}
+          disabled={isFlowRunning}
+          className={`flex items-center gap-2 px-4 min-h-[40px] rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${theme.accentBtn} disabled:opacity-50`}
+        >
+          {isFlowRunning ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Play size={14} aria-hidden />}
+          {isFlowRunning ? t.flowRunning : t.runFlow}
+        </button>
+      </div>
+
+      {/* Split view: vertical flow (left) + selected task detail (right) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
+        <ol className="md:col-span-1 flex flex-col items-stretch" aria-label={t.flux}>
+          {visibleTasks.map((task, i) => {
+            const agent = agents.find((a) => a.id === task.agentId);
+            const isMeta = !task.accessible;
+            return (
+              <li key={task.id} className="flex flex-col items-stretch">
+                {i > 0 && (
+                  <span className="self-center py-1" aria-hidden>
+                    <ArrowDown size={16} className={theme.mutedText} />
+                  </span>
+                )}
+                {isMeta ? (
+                  /* META-TASK: structure only, content hidden */
+                  <div
+                    className={`rounded-2xl border border-dashed ${theme.glassBorder} p-4 flex items-center gap-3 opacity-70`}
+                    aria-label={`${t.metaTask}: ${t.noAccessTask}`}
+                  >
+                    <EyeOff size={16} className={theme.mutedText} aria-hidden />
+                    <div>
+                      <p className={`text-sm font-bold uppercase tracking-wide ${theme.mutedText}`}>{t.metaTask}</p>
+                      <p className={`text-xs ${theme.mutedText}`}>{t.metaTaskHint}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <Panel className={`${theme.glassHover} ${selectedTaskId === task.id ? 'ring-2 ring-blue-500/60' : ''}`}>
+                    <button
+                      onClick={() => setSelectedTaskId(task.id)}
+                      aria-pressed={selectedTaskId === task.id}
+                      className="w-full p-4 text-left space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`text-sm font-semibold truncate ${theme.primaryText}`}>{task.title}</span>
+                        <StatusPill status={task.status} />
+                      </div>
+                      <p className={`text-xs ${theme.mutedText}`}>{agent?.name}</p>
+                    </button>
+                  </Panel>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+
+        <div className="md:col-span-2 md:sticky md:top-20">
+          {selectedTask ? (
+            <TaskDetail task={selectedTask} />
+          ) : (
+            <p className={`text-sm py-10 text-center ${theme.mutedText}`}>{t.selectTask}</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default FluxView;

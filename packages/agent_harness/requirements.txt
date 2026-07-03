@@ -1,0 +1,18 @@
+# Standard agent harness — LangChain / LangGraph / Pydantic stack.
+langchain-core>=0.3
+langgraph>=0.2
+pydantic>=2.7
+python-dotenv>=1.0
+
+# Shared contracts (editable install from the monorepo root):
+#   pip install -e packages/shared_contracts
+
+# Providers — install only those you bind agents to (LLM agnosticism):
+# langchain-google-genai>=2.0
+# langchain-openai>=0.2
+# langchain-anthropic>=0.2
+# langchain-ollama>=0.2
+
+# Optional:
+# chromadb>=0.5          # vector episodic memory (keyword fallback otherwise)
+# langsmith>=0.1         # tracing (activated via LANGSMITH_* env vars)

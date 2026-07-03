@@ -1,0 +1,25 @@
+# Node
+node_modules/
+dist/
+*.local
+
+# Environment & secrets — never commit keys
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+packages/agent_harness/data/
+
+# Firebase
+.firebase/
+.firebaserc
+
+# OS / editors
+.DS_Store
+*.log
