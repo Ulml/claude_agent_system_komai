@@ -13,6 +13,7 @@
 | Look glassmorphique | `apps/web/src/components/ui/Glass.tsx` | tous les conteneurs/labels/pills |
 | Appel LLM | `apps/web/src/services/llm.ts` (front) / `main.py::build_llm` (Python) | chat, agents |
 | Boucle d'agent | `packages/agent_harness/core/harness_graph.py` | tous les agents |
+| Graphe d'agents & méta-nœuds (Curateur) | `apps/web/src/core/curator.ts` ↔ `packages/agent_harness/core/curator.py` | bureau (propositions de dossiers) |
 | Périmètres d'accès | `contracts.Perimeter` + `firebase/firestore.rules` | UI (`visibleTasks`) + serveur |
 
 Règle : un élément identique n'existe qu'à UN endroit ; les miroirs

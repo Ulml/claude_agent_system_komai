@@ -46,6 +46,15 @@ class WorkPhase(str, Enum):
     OBSERVE = "OBSERVE"
 
 
+class GroupingLogic(str, Enum):
+    """Logics the Curator agent applies over the agent graph (meta-nodes)."""
+
+    ROLE = "role"
+    PROVIDER = "provider"
+    ACTIVITY = "activity"
+    CUSTOM = "custom"
+
+
 class LearningMode(str, Enum):
     """The four ways an agent learns (see docs/PRD.md §Learning)."""
 
@@ -80,6 +89,35 @@ class AgentProfile(BaseModel):
     skills: list[str] = Field(default_factory=list)
     llm_binding: LLMBinding
     status: Literal["idle", "working", "waiting"] = "idle"
+
+
+class AgentEdge(BaseModel):
+    """One weighted affinity edge between two agent nodes of the graph."""
+
+    a: str
+    b: str
+    weight: int = 0
+    reasons: list[GroupingLogic] = Field(default_factory=list)
+
+
+class AgentGraph(BaseModel):
+    """The graph the Curator reasons on: nodes = agent ids, edges = affinities."""
+
+    nodes: list[str] = Field(default_factory=list)
+    edges: list[AgentEdge] = Field(default_factory=list)
+
+
+class MetaNodeProposal(BaseModel):
+    """A META-NODE: a grouping node created over agent nodes of the graph,
+    proposed to the user for validation. Accepted → desktop AgentFolder.
+    Names/rationales are i18n keys resolved by the client."""
+
+    id: str
+    logic: GroupingLogic
+    name_key: str
+    name_param: Optional[str] = None
+    rationale_key: str = ""
+    agent_ids: list[str] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------

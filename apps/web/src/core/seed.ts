@@ -8,6 +8,7 @@
  */
 import {
   Bot,
+  FolderTree,
   Gavel,
   GitBranch,
   LineChart,
@@ -227,6 +228,33 @@ export const seedAgents: AgentProfile[] = [
   OBSERVE -->|erreur| PLAN
   OBSERVE -->|ok| PUSH[Push GitHub + rapport]`,
     skills: ['Structure de repo SOTA', 'Borderless UI', 'Failover LLM en cascade'],
+    llmBinding: { providerId: 'google', model: 'gemini-3-flash-preview' },
+    status: 'idle',
+  },
+  {
+    id: 'curator',
+    name: 'Curateur',
+    kind: 'worker',
+    icon: FolderTree,
+    tagline: 'Propose des dossiers d’agents par méta-nœuds',
+    readme: mkReadme(
+      'Agent Curateur',
+      'Le graphe des agents de l’OS (nœuds = agents, arêtes = affinités de rôle, de plateforme LLM et d’activité projet), ou n’importe quel groupe d’agents désigné par l’utilisateur.',
+      'Des MÉTA-NŒUDS de regroupement — des propositions de dossiers argumentées, soumises à validation de l’utilisateur. Un méta-nœud accepté devient un dossier du bureau.'
+    ),
+    mermaidAlgorithm: `flowchart TD
+  IN[Agents de l'OS ou groupe désigné] --> GRAPH[Construction du graphe d'agents]
+  GRAPH --> EDGES[Arêtes pondérées : rôle +2, plateforme +1, activité +1]
+  EDGES --> META[Création de méta-nœuds au-dessus des nœuds agents]
+  META --> LOGIC{Logique}
+  LOGIC -->|rôle| P1[Proposition par rôle]
+  LOGIC -->|plateforme LLM| P2[Proposition par plateforme]
+  LOGIC -->|activité projet| P3[Proposition par activité]
+  LOGIC -->|périmètre désigné| P4[Méta-nœud sur le groupe choisi]
+  P1 & P2 & P3 & P4 --> USER[Validation utilisateur]
+  USER -->|accepté| FOLDER[Dossier créé sur le bureau]
+  USER -->|refusé| DROP[Méta-nœud abandonné]`,
+    skills: ['Graphes d’affinité', 'Méta-nœuds de regroupement', 'Dé-duplication de dossiers'],
     llmBinding: { providerId: 'google', model: 'gemini-3-flash-preview' },
     status: 'idle',
   },

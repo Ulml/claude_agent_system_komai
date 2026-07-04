@@ -1,5 +1,6 @@
 """Core of the standard agent harness (one loop for every agent)."""
 
+from .curator import build_agent_graph, propose_meta_node_for_scope, propose_meta_nodes
 from .harness_graph import AgentHarness
 from .learning import LearningEngine
 from .loop_guardrails import LoopGuardrails
@@ -18,5 +19,8 @@ __all__ = [
     "RAGRetriever",
     "Summarizer",
     "ToolRegistry",
+    "build_agent_graph",
     "emit_work_event",
+    "propose_meta_node_for_scope",
+    "propose_meta_nodes",
 ]

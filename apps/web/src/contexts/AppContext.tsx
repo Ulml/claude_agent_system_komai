@@ -15,6 +15,7 @@ import type {
   Language,
   LearningEntry,
   LLMProvider,
+  MetaNodeProposal,
   Project,
   TaskNode,
   ThemeColor,
@@ -33,6 +34,7 @@ import {
   seedWorkEvents,
 } from '@/core/seed';
 import { decomposeGoal, runFlowLocally } from '@/core/orchestrator';
+import { proposeMetaNodeForScope, proposeMetaNodes } from '@/core/curator';
 import { generateText } from '@/services/llm';
 import { persistProject } from '@/services/firebase';
 
@@ -57,6 +59,21 @@ interface AppContextType {
   folders: AgentFolder[];
   openFolderId: string | null;
   setOpenFolderId: (id: string | null) => void;
+  createFolder: (name: string, agentIds: string[]) => void;
+  deleteFolder: (id: string) => void;
+
+  // Desktop selection (designating a group of agents)
+  isSelectionMode: boolean;
+  setIsSelectionMode: (on: boolean) => void;
+  selectedAgentIds: string[];
+  toggleAgentSelection: (id: string) => void;
+
+  // Curator agent — meta-node grouping proposals
+  proposals: MetaNodeProposal[];
+  requestCuratorProposals: (scopeIds?: string[]) => void;
+  acceptProposal: (id: string) => void;
+  rejectProposal: (id: string) => void;
+  resolveProposalName: (p: MetaNodeProposal) => string;
 
   // Projects & tasks
   projects: Project[];
@@ -102,8 +119,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [view, setView] = useState<View>({ kind: 'tab', tab: 'HOME' });
 
   const [agents] = useState<AgentProfile[]>(seedAgents);
-  const [folders] = useState<AgentFolder[]>(seedFolders);
+  const [folders, setFolders] = useState<AgentFolder[]>(seedFolders);
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+  const [proposals, setProposals] = useState<MetaNodeProposal[]>([]);
   const [projects, setProjects] = useState<Project[]>([seedProject]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(seedProject.id);
   const [tasks, setTasks] = useState<TaskNode[]>(seedTasks);
@@ -122,6 +142,99 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
 
   const t = translations[language];
+
+  /* ----------------------- Folders & selection ------------------------ */
+
+  const createFolder = useCallback((name: string, agentIds: string[]) => {
+    if (!name.trim() || agentIds.length === 0) return;
+    const folder: AgentFolder = { id: `folder-${Date.now()}`, name: name.trim(), agentIds };
+    // iOS semantics: an agent lives in one folder. Moving it into the new
+    // folder removes it from any previous one; emptied folders disappear.
+    setFolders((prev) => [
+      ...prev
+        .map((f) => ({ ...f, agentIds: f.agentIds.filter((id) => !agentIds.includes(id)) }))
+        .filter((f) => f.agentIds.length > 0),
+      folder,
+    ]);
+    setSelectedAgentIds([]);
+    setIsSelectionMode(false);
+  }, []);
+
+  const deleteFolder = useCallback((id: string) => {
+    // Deleting a folder releases its agents back to the desktop root.
+    setFolders((prev) => prev.filter((f) => f.id !== id));
+    setOpenFolderId((current) => (current === id ? null : current));
+  }, []);
+
+  const toggleAgentSelection = useCallback((id: string) => {
+    setSelectedAgentIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  /* --------------------- Curator (meta-node) agent --------------------- */
+
+  const pushCuratorEvents = useCallback((scopeLabel: string, count: number) => {
+    const now = Date.now();
+    const mk = (phase: WorkEvent['phase'], label: string, detail: string, offset: number): WorkEvent => ({
+      id: `w-cur-${now}-${offset}`,
+      agentId: 'curator',
+      taskId: null,
+      phase,
+      label,
+      detail,
+      timestamp: now + offset,
+    });
+    setWorkEvents((prev) => [
+      ...prev,
+      mk('SENSE', 'Lecture du graphe d’agents', scopeLabel, 0),
+      mk('PLAN', 'Pondération des arêtes', 'rôle +2 · plateforme +1 · activité +1', 1),
+      mk('ACT', 'Création des méta-nœuds', `${count} proposition(s) générée(s)`, 2),
+      mk('OBSERVE', 'Attente de validation utilisateur', 'Accepter ou refuser chaque méta-nœud.', 3),
+    ]);
+  }, []);
+
+  const requestCuratorProposals = useCallback(
+    (scopeIds?: string[]) => {
+      // Humans and system agents are groupable too — the whole OS is the graph.
+      if (scopeIds && scopeIds.length >= 2) {
+        const proposal = proposeMetaNodeForScope(agents, scopeIds, folders);
+        setProposals(proposal ? [proposal] : []);
+        pushCuratorEvents(`Périmètre désigné : ${scopeIds.length} agents`, proposal ? 1 : 0);
+      } else {
+        const all = proposeMetaNodes(agents, tasks, folders);
+        setProposals(all);
+        pushCuratorEvents(`Graphe complet : ${agents.length} agents`, all.length);
+      }
+    },
+    [agents, tasks, folders, pushCuratorEvents]
+  );
+
+  const resolveProposalName = useCallback(
+    (p: MetaNodeProposal): string => {
+      const base = t[p.nameKey] ?? p.nameKey;
+      if (!p.nameParam) return base;
+      // Human-readable parameter: provider name or project title when known.
+      const provider = providers.find((pr) => pr.id === p.nameParam);
+      const project = projects.find((pr) => pr.id === p.nameParam);
+      return `${base} ${provider?.name ?? project?.title ?? p.nameParam}`;
+    },
+    [t, providers, projects]
+  );
+
+  const acceptProposal = useCallback(
+    (id: string) => {
+      const proposal = proposals.find((p) => p.id === id);
+      if (!proposal) return;
+      createFolder(resolveProposalName(proposal), proposal.agentIds);
+      setProposals((prev) => prev.filter((p) => p.id !== id));
+    },
+    [proposals, createFolder, resolveProposalName]
+  );
+
+  const rejectProposal = useCallback((id: string) => {
+    setProposals((prev) => prev.filter((p) => p.id !== id));
+  }, []);
 
   /* ----------------------------- Projects ----------------------------- */
 
@@ -252,6 +365,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     folders,
     openFolderId,
     setOpenFolderId,
+    createFolder,
+    deleteFolder,
+    isSelectionMode,
+    setIsSelectionMode,
+    selectedAgentIds,
+    toggleAgentSelection,
+    proposals,
+    requestCuratorProposals,
+    acceptProposal,
+    rejectProposal,
+    resolveProposalName,
     projects,
     selectedProjectId,
     setSelectedProjectId,

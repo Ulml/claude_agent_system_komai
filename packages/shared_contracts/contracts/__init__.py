@@ -5,8 +5,12 @@ The TypeScript mirror lives in `apps/web/src/core/types.ts`.
 """
 
 from .models import (
+    AgentEdge,
+    AgentGraph,
     AgentKind,
     AgentProfile,
+    GroupingLogic,
+    MetaNodeProposal,
     ConformityCriterion,
     ConformityReport,
     LearningEntry,
@@ -23,8 +27,12 @@ from .models import (
 )
 
 __all__ = [
+    "AgentEdge",
+    "AgentGraph",
     "AgentKind",
     "AgentProfile",
+    "GroupingLogic",
+    "MetaNodeProposal",
     "ConformityCriterion",
     "ConformityReport",
     "LearningEntry",

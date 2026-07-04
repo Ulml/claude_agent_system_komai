@@ -5,28 +5,56 @@
  * exact same card) appears as an icon in a bento grid. Agents can be grouped
  * into FOLDERS (iOS-style): a folder tile has the SAME rounded-square shape
  * as an agent tile, with its member agents rendered as miniatures inside.
- * Opening a folder reveals the full agent cards; clicking an agent opens its
- * dedicated page.
+ *
+ * The user can:
+ *   - create their own folders (name + any agents) via the FolderModal;
+ *   - designate any group of agents with the SELECTION mode, then either
+ *     create a folder directly or ask the CURATOR agent for a meta-node;
+ *   - ask the Curator for OS-wide grouping proposals (role / LLM platform /
+ *     project activity logics) and accept or reject each meta-node.
  */
-import React, { useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Check, FolderPlus, FolderTree, MousePointer2, Trash2, X } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { Panel, MicroLabel, StatusPill } from '@/components/ui/Glass';
+import FolderModal from '@/components/modals/FolderModal';
 import type { AgentFolder, AgentProfile } from '@/core/types';
 
-/** Full agent card — used at top level AND inside an open folder (SSOT). */
+/**
+ * Full agent card — used at top level AND inside an open folder (SSOT).
+ * In selection mode, clicking designates/undesignates the agent instead of
+ * opening its page.
+ */
 const AgentCard: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
-  const { theme, t, setView, tasks } = useApp();
+  const { theme, t, setView, tasks, isSelectionMode, selectedAgentIds, toggleAgentSelection } =
+    useApp();
   const Icon = agent.icon;
   const runningTask = tasks.find((task) => task.agentId === agent.id && task.status === 'running');
   const status = runningTask ? 'working' : agent.status;
+  const isSelected = selectedAgentIds.includes(agent.id);
+
   return (
-    <Panel className={`${theme.glassHover} transition-transform hover:scale-[1.02]`}>
+    <Panel
+      className={`${theme.glassHover} transition-transform hover:scale-[1.02] ${
+        isSelectionMode && isSelected ? 'ring-2 ring-blue-500/70' : ''
+      }`}
+    >
       <button
-        onClick={() => setView({ kind: 'agent', agentId: agent.id })}
-        aria-label={`${t.openAgent}: ${agent.name}`}
-        className="w-full h-full p-4 sm:p-5 flex flex-col items-start gap-3 text-left"
+        onClick={() => (isSelectionMode ? toggleAgentSelection(agent.id) : setView({ kind: 'agent', agentId: agent.id }))}
+        aria-label={isSelectionMode ? `${t.selectionMode}: ${agent.name}` : `${t.openAgent}: ${agent.name}`}
+        aria-pressed={isSelectionMode ? isSelected : undefined}
+        className="w-full h-full p-4 sm:p-5 flex flex-col items-start gap-3 text-left relative"
       >
+        {isSelectionMode && (
+          <span
+            aria-hidden
+            className={`absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center border ${
+              isSelected ? 'bg-blue-600 border-blue-600 text-white' : `${theme.glassBorder} ${theme.glassBg}`
+            }`}
+          >
+            {isSelected && <Check size={12} />}
+          </span>
+        )}
         <span className={`p-3 rounded-2xl ${theme.iconBg}`}>
           <Icon size={22} strokeWidth={1.5} className={theme.primaryText} aria-hidden />
         </span>
@@ -66,7 +94,6 @@ const FolderTile: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
         <span className={`p-2 rounded-2xl ${theme.iconBg} grid grid-cols-2 gap-1.5`} aria-hidden>
           {preview.map((agent, i) => {
             const MiniIcon = agent.icon;
-            // The 4th slot shows "+n" when the folder holds more agents.
             if (i === 3 && overflow > 0) {
               return (
                 <span
@@ -83,7 +110,6 @@ const FolderTile: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
               </span>
             );
           })}
-          {/* Pad the mini-grid so lone agents still read as a folder */}
           {preview.length < 4 &&
             overflow === 0 &&
             Array.from({ length: 4 - preview.length }).map((_, i) => (
@@ -103,9 +129,9 @@ const FolderTile: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
   );
 };
 
-/** Open-folder overlay: full agent cards of the folder, dialog semantics. */
+/** Open-folder overlay: full agent cards + folder deletion. */
 const FolderOverlay: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
-  const { theme, t, agents, setOpenFolderId } = useApp();
+  const { theme, t, agents, setOpenFolderId, deleteFolder } = useApp();
   const dialogRef = useRef<HTMLDivElement>(null);
   const members = folder.agentIds
     .map((id) => agents.find((a) => a.id === id))
@@ -133,15 +159,24 @@ const FolderOverlay: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
         className={`w-full max-w-2xl max-h-[80vh] overflow-y-auto custom-scrollbar rounded-[2rem] p-5 space-y-4 backdrop-blur-2xl border ${theme.glassBorder} animate-fade-up`}
         style={{ backgroundColor: theme.isDark ? 'rgba(2,6,23,0.85)' : 'rgba(255,255,255,0.85)' }}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <h3 className={`text-sm font-bold uppercase tracking-wide ${theme.primaryText}`}>{folder.name}</h3>
-          <button
-            onClick={() => setOpenFolderId(null)}
-            aria-label={t.closeFolder}
-            className={`p-2 rounded-full ${theme.glassHover} ${theme.primaryText}`}
-          >
-            <X size={16} aria-hidden />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => deleteFolder(folder.id)}
+              aria-label={`${t.deleteFolder}: ${folder.name}`}
+              className={`p-2 rounded-full ${theme.glassHover} ${theme.mutedText}`}
+            >
+              <Trash2 size={15} aria-hidden />
+            </button>
+            <button
+              onClick={() => setOpenFolderId(null)}
+              aria-label={t.closeFolder}
+              className={`p-2 rounded-full ${theme.glassHover} ${theme.primaryText}`}
+            >
+              <X size={16} aria-hidden />
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {members.map((agent) => (
@@ -153,20 +188,133 @@ const FolderOverlay: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
   );
 };
 
+/** Curator proposal cards: one per meta-node, with accept/reject actions. */
+const ProposalsPanel: React.FC = () => {
+  const { theme, t, agents, proposals, acceptProposal, rejectProposal, resolveProposalName } =
+    useApp();
+  if (proposals.length === 0) return null;
+
+  return (
+    <section aria-label={t.curatorProposals} className="mb-5 space-y-3">
+      <MicroLabel className="flex items-center gap-1.5">
+        <FolderTree size={12} aria-hidden /> {t.curatorProposals}
+      </MicroLabel>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {proposals.map((p) => {
+          const members = p.agentIds
+            .map((id) => agents.find((a) => a.id === id))
+            .filter((a): a is AgentProfile => Boolean(a));
+          return (
+            <Panel key={p.id} className="p-4 space-y-3">
+              <div>
+                <p className={`text-sm font-bold uppercase tracking-wide ${theme.primaryText}`}>
+                  {resolveProposalName(p)}
+                </p>
+                <p className={`text-xs ${theme.mutedText}`}>{t[p.rationaleKey]}</p>
+              </div>
+              <ul className="flex flex-wrap gap-1.5">
+                {members.map((m) => {
+                  const MiniIcon = m.icon;
+                  return (
+                    <li
+                      key={m.id}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${theme.iconBg} ${theme.secondaryText}`}
+                    >
+                      <MiniIcon size={12} strokeWidth={1.5} aria-hidden />
+                      {m.name}
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => acceptProposal(p.id)}
+                  className={`flex items-center gap-1.5 px-4 min-h-[40px] rounded-full text-xs font-bold uppercase tracking-wider ${theme.userBubble}`}
+                >
+                  <Check size={13} aria-hidden /> {t.accept}
+                </button>
+                <button
+                  onClick={() => rejectProposal(p.id)}
+                  className={`flex items-center gap-1.5 px-4 min-h-[40px] rounded-full text-xs font-bold uppercase tracking-wider ${theme.secondaryText} ${theme.glassHover}`}
+                >
+                  <X size={13} aria-hidden /> {t.reject}
+                </button>
+              </div>
+            </Panel>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
 const AgentDesktop: React.FC = () => {
-  const { t, agents, folders, openFolderId } = useApp();
+  const {
+    theme,
+    t,
+    agents,
+    folders,
+    openFolderId,
+    isSelectionMode,
+    setIsSelectionMode,
+    selectedAgentIds,
+    requestCuratorProposals,
+  } = useApp();
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
 
   // Agents living inside a folder are not repeated at top level.
   const folderedIds = new Set(folders.flatMap((f) => f.agentIds));
   const topLevelAgents = agents.filter((a) => !folderedIds.has(a.id));
   const openFolder = folders.find((f) => f.id === openFolderId);
+  const enoughSelected = selectedAgentIds.length >= 2;
+
+  const actionBtn = `flex items-center gap-1.5 px-3 sm:px-4 min-h-[40px] rounded-full text-xs font-bold uppercase tracking-wider transition-colors`;
 
   return (
     <section aria-label={t.agents} className="w-full max-w-5xl mx-auto px-4 py-6 animate-fade-up">
-      <div className="flex items-baseline justify-between gap-4 mb-4">
+      {/* Desktop actions: own folders, selection mode, Curator */}
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <MicroLabel>{t.agents}</MicroLabel>
-        <MicroLabel className="hidden sm:block text-right">{t.emptyDesktopHint}</MicroLabel>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setIsFolderModalOpen(true)} className={`${actionBtn} ${theme.accentBtn}`}>
+            <FolderPlus size={14} aria-hidden /> {t.newFolder}
+          </button>
+          <button
+            onClick={() => setIsSelectionMode(!isSelectionMode)}
+            aria-pressed={isSelectionMode}
+            className={`${actionBtn} ${isSelectionMode ? theme.userBubble : `${theme.secondaryText} ${theme.glassHover}`}`}
+          >
+            <MousePointer2 size={14} aria-hidden /> {t.selectionMode}
+            {selectedAgentIds.length > 0 && ` (${selectedAgentIds.length})`}
+          </button>
+          {isSelectionMode && enoughSelected && (
+            <>
+              <button onClick={() => setIsFolderModalOpen(true)} className={`${actionBtn} ${theme.accentBtn}`}>
+                <FolderPlus size={14} aria-hidden /> {t.createFolderFromSelection}
+              </button>
+              <button
+                onClick={() => requestCuratorProposals(selectedAgentIds)}
+                className={`${actionBtn} ${theme.accentBtn}`}
+              >
+                <FolderTree size={14} aria-hidden /> {t.proposeMetaNode}
+              </button>
+            </>
+          )}
+          {!isSelectionMode && (
+            <button onClick={() => requestCuratorProposals()} className={`${actionBtn} ${theme.accentBtn}`}>
+              <FolderTree size={14} aria-hidden /> {t.curatorProposeAll}
+            </button>
+          )}
+        </div>
       </div>
+
+      {isSelectionMode && (
+        <p className={`text-xs mb-4 ${theme.mutedText}`} role="status">
+          {t.selectionHint}
+        </p>
+      )}
+
+      <ProposalsPanel />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
         {folders.map((folder) => (
@@ -178,6 +326,11 @@ const AgentDesktop: React.FC = () => {
       </div>
 
       {openFolder && <FolderOverlay folder={openFolder} />}
+      <FolderModal
+        isOpen={isFolderModalOpen}
+        onClose={() => setIsFolderModalOpen(false)}
+        initialAgentIds={selectedAgentIds}
+      />
     </section>
   );
 };

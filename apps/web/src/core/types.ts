@@ -107,6 +107,42 @@ export interface AgentFolder {
 }
 
 /* ------------------------------------------------------------------ */
+/* Curator agent — graph of agents & meta-node grouping proposals      */
+/* ------------------------------------------------------------------ */
+
+/** Grouping logics the Curator agent can apply over the agent graph. */
+export type GroupingLogic = 'role' | 'provider' | 'activity' | 'custom';
+
+/** One weighted affinity edge between two agent nodes. */
+export interface AgentEdge {
+  a: string; // agent id
+  b: string; // agent id
+  weight: number;
+  reasons: GroupingLogic[];
+}
+
+/** The agent graph the Curator reasons on: nodes = agents, edges = affinities. */
+export interface AgentGraph {
+  nodes: string[];
+  edges: AgentEdge[];
+}
+
+/**
+ * A META-NODE: a grouping node the Curator creates OVER agent nodes of the
+ * graph. Proposed to the user for validation; once accepted it materialises
+ * as an AgentFolder on the desktop. Names/rationales are i18n keys so the
+ * proposal renders in the user's language.
+ */
+export interface MetaNodeProposal {
+  id: string;
+  logic: GroupingLogic;
+  nameKey: string;
+  nameParam?: string;
+  rationaleKey: string;
+  agentIds: string[];
+}
+
+/* ------------------------------------------------------------------ */
 /* Tasks, contracts and conformity (agent-to-agent messages)           */
 /* ------------------------------------------------------------------ */
 

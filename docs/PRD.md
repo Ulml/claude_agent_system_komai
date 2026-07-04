@@ -51,6 +51,22 @@ comportant des centaines voire des milliers d'étapes.
   miniature (grille 2×2, badge « +n » au-delà de 4). L'ouverture du dossier
   révèle les cartes complètes ; les agents d'un dossier ne sont pas répétés
   au niveau racine du bureau.
+- **Dossiers créés par l'utilisateur** : bouton « Nouveau dossier »
+  (nom + choix libre des agents), mode **Sélection** pour désigner un groupe
+  d'agents directement sur le bureau, suppression d'un dossier depuis sa vue
+  ouverte (les agents retournent à la racine). Un agent vit dans un seul
+  dossier : l'ajouter ailleurs l'y déplace.
+- **Agent Curateur (méta-nœuds)** : agent dédié qui raisonne sur le **graphe
+  des agents** (nœuds = agents ; arêtes pondérées : rôle +2, plateforme LLM
+  +1, activité projet +1) et crée des **méta-nœuds de regroupement**
+  au-dessus des nœuds agents. Il propose des dossiers selon plusieurs
+  logiques (rôle, plateforme LLM, activité projet) sur tout l'OS, ou un
+  méta-nœud sur **n'importe quel groupe d'agents désigné** par l'utilisateur
+  via le mode Sélection. Chaque proposition est soumise à validation
+  (Valider → dossier créé ; Refuser → méta-nœud abandonné) ; les
+  regroupements identiques à un dossier existant sont dédupliqués.
+  Moteur : `apps/web/src/core/curator.ts`, miroir Python
+  `packages/agent_harness/core/curator.py`.
 
 ## 5. Communication structurée inter-agents
 
