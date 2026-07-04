@@ -20,8 +20,9 @@ import {
 } from 'lucide-react';
 import type { AgentFolder, AgentProfile } from './types';
 
-/** Boucle Mermaid commune à tous les simulateurs ; seul le modèle varie. */
-const mkSimulatorMermaid = (model: string) => `flowchart TD
+/** Boucle Mermaid commune à tous les simulateurs ; seul le modèle varie.
+ *  (Exportée : réutilisée par seed_rad_protection.ts — SSOT.) */
+export const mkSimulatorMermaid = (model: string) => `flowchart TD
   IN[Scénario de mission : masse, delta-v, durée, charge utile] --> SENSE[SENSE : validation des paramètres]
   SENSE --> PLAN[PLAN : choix du pas d'intégration et des hypothèses]
   PLAN --> MODEL[ACT : ${model}]
@@ -31,8 +32,9 @@ const mkSimulatorMermaid = (model: string) => `flowchart TD
   OBSERVE -->|convergé| JUDGE[JUGE : conformité physique du rapport]
   JUDGE --> OUT[Rapport de simulation → orchestrateur]`;
 
-/** README type d'un simulateur : besoins/livrables standard + fiche techno. */
-const mkSimReadme = (title: string, body: string) => `# Simulateur — ${title}
+/** README type d'un simulateur : besoins/livrables standard + fiche techno.
+ *  (Exporté : réutilisé par seed_rad_protection.ts — SSOT.) */
+export const mkSimReadme = (title: string, body: string) => `# Simulateur — ${title}
 
 ## Ce dont il a besoin
 Un scénario de mission (masse du vaisseau, delta-v visé, durée, charge
@@ -310,9 +312,21 @@ voiles). Prometteur pour sondes légères vers Alpha Centauri.`
   },
 ];
 
-/** Le dossier du bureau regroupant les huit simulateurs. */
+/**
+ * Le dossier racine « Technologies Spatiales » ne contient plus d'agents en
+ * direct : il regroupe des SOUS-DOSSIERS thématiques (Propulsion,
+ * Protections Anti-Radiations — voir seed_rad_protection.ts).
+ */
 export const spaceTechFolder: AgentFolder = {
   id: 'folder-space-tech',
   name: 'Technologies Spatiales',
+  agentIds: [],
+};
+
+/** Sous-dossier « Propulsion » : les huit simulateurs de propulsion. */
+export const propulsionFolder: AgentFolder = {
+  id: 'folder-propulsion',
+  name: 'Propulsion',
   agentIds: spaceTechAgents.map((a) => a.id),
+  parentId: spaceTechFolder.id,
 };

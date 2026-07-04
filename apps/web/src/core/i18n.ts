@@ -8,6 +8,7 @@ import type { Language } from './types';
 type Dict = Record<string, string>;
 
 const FR: Dict = {
+  subFolders: 'sous-dossiers',
   newFolder: 'Nouveau dossier',
   folderName: 'Nom du dossier',
   selectAgents: 'Choisir les agents',
@@ -119,6 +120,7 @@ const FR: Dict = {
 };
 
 const EN: Dict = {
+  subFolders: 'sub-folders',
   newFolder: 'New folder',
   folderName: 'Folder name',
   selectAgents: 'Choose agents',
@@ -230,6 +232,7 @@ const EN: Dict = {
 };
 
 const ES: Dict = {
+  subFolders: 'subcarpetas',
   newFolder: 'Nueva carpeta',
   folderName: 'Nombre de la carpeta',
   selectAgents: 'Elegir agentes',

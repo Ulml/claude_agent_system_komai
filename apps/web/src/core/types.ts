@@ -99,11 +99,15 @@ export interface AgentProfile {
  * A desktop folder grouping agents on the home screen (iOS-style).
  * Rendered with the SAME rounded-square tile as an agent icon; the member
  * agents appear as miniatures inside. Opening it reveals the full cards.
+ * Folders NEST: a folder with a `parentId` is a sub-folder, shown as a tile
+ * inside its parent's open view instead of on the desktop root.
  */
 export interface AgentFolder {
   id: string;
   name: string;
   agentIds: string[];
+  /** Present on sub-folders only; undefined = desktop root. */
+  parentId?: string;
 }
 
 /* ------------------------------------------------------------------ */

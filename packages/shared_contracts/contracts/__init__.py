@@ -6,6 +6,7 @@ The TypeScript mirror lives in `apps/web/src/core/types.ts`.
 
 from .models import (
     AgentEdge,
+    AgentFolder,
     AgentGraph,
     AgentKind,
     AgentProfile,
@@ -28,6 +29,7 @@ from .models import (
 
 __all__ = [
     "AgentEdge",
+    "AgentFolder",
     "AgentGraph",
     "AgentKind",
     "AgentProfile",

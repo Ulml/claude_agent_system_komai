@@ -56,6 +56,19 @@ comportant des centaines voire des milliers d'étapes.
   d'agents directement sur le bureau, suppression d'un dossier depuis sa vue
   ouverte (les agents retournent à la racine). Un agent vit dans un seul
   dossier : l'ajouter ailleurs l'y déplace.
+- **Sous-dossiers** : les dossiers s'imbriquent (`parentId`). Un dossier
+  parent affiche ses sous-dossiers en tuiles dans sa vue ouverte, avec une
+  flèche retour ; seuls les dossiers racine tuilent le bureau. Exemple livré :
+  « Technologies Spatiales » → « Propulsion » (8 simulateurs) et
+  « Protections Anti-Radiations » (4 simulateurs).
+- **Orchestrateur — administration de l'OS** : l'orchestrateur sait, par
+  outils dédiés, faire ce que l'utilisateur fait à la main : `create_folder`
+  / `create_subfolder` (dossiers et sous-dossiers), `create_agent`
+  (instancier un agent sur le harnais standard) et `verify_agent_sources`
+  (vérifier chaque agent créé contre des **sources internet** via
+  `web_search`, rapport de conformité soumis au juge avant publication).
+  Outils : `packages/agent_harness/orchestrator/os_admin_tools.py` ;
+  primitives client : `AppContext.createFolder` / `createAgent`.
 - **Agent Curateur (méta-nœuds)** : agent dédié qui raisonne sur le **graphe
   des agents** (nœuds = agents ; arêtes pondérées : rôle +2, plateforme LLM
   +1, activité projet +1) et crée des **méta-nœuds de regroupement**

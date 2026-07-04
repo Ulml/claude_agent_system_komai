@@ -91,6 +91,16 @@ class AgentProfile(BaseModel):
     status: Literal["idle", "working", "waiting"] = "idle"
 
 
+class AgentFolder(BaseModel):
+    """Desktop folder grouping agents (iOS-style). Folders nest via
+    `parent_id`: a sub-folder is shown inside its parent's open view."""
+
+    id: str
+    name: str
+    agent_ids: list[str] = Field(default_factory=list)
+    parent_id: Optional[str] = None
+
+
 class AgentEdge(BaseModel):
     """One weighted affinity edge between two agent nodes of the graph."""
 

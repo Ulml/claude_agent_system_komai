@@ -14,7 +14,8 @@
  *     project activity logics) and accept or reject each meta-node.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, FolderPlus, FolderTree, MousePointer2, Trash2, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Check, ChevronLeft, Folder, FolderPlus, FolderTree, MousePointer2, Trash2, X } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { Panel, MicroLabel, StatusPill } from '@/components/ui/Glass';
 import FolderModal from '@/components/modals/FolderModal';
@@ -26,12 +27,18 @@ import type { AgentFolder, AgentProfile } from '@/core/types';
  * opening its page.
  */
 const AgentCard: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
-  const { theme, t, setView, tasks, isSelectionMode, selectedAgentIds, toggleAgentSelection } =
+  const { theme, t, setView, setOpenFolderId, tasks, isSelectionMode, selectedAgentIds, toggleAgentSelection } =
     useApp();
   const Icon = agent.icon;
   const runningTask = tasks.find((task) => task.agentId === agent.id && task.status === 'running');
   const status = runningTask ? 'working' : agent.status;
   const isSelected = selectedAgentIds.includes(agent.id);
+
+  const openAgent = () => {
+    // Close any open folder overlay so it doesn't sit above the agent page.
+    setOpenFolderId(null);
+    setView({ kind: 'agent', agentId: agent.id });
+  };
 
   return (
     <Panel
@@ -40,7 +47,7 @@ const AgentCard: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
       }`}
     >
       <button
-        onClick={() => (isSelectionMode ? toggleAgentSelection(agent.id) : setView({ kind: 'agent', agentId: agent.id }))}
+        onClick={() => (isSelectionMode ? toggleAgentSelection(agent.id) : openAgent())}
         aria-label={isSelectionMode ? `${t.selectionMode}: ${agent.name}` : `${t.openAgent}: ${agent.name}`}
         aria-pressed={isSelectionMode ? isSelected : undefined}
         className="w-full h-full p-4 sm:p-5 flex flex-col items-start gap-3 text-left relative"
@@ -75,8 +82,15 @@ const AgentCard: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
  * appear as a 2×2 grid of miniatures inside (max 4, then a "+n" chip).
  */
 const FolderTile: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
-  const { theme, t, agents, setOpenFolderId } = useApp();
-  const members = folder.agentIds
+  const { theme, t, agents, folders, setOpenFolderId } = useApp();
+  // Effective members include agents of nested sub-folders, so a parent
+  // folder's tile previews everything it contains.
+  const collectAgentIds = (f: AgentFolder): string[] => [
+    ...f.agentIds,
+    ...folders.filter((child) => child.parentId === f.id).flatMap(collectAgentIds),
+  ];
+  const subFolderCount = folders.filter((child) => child.parentId === folder.id).length;
+  const members = collectAgentIds(folder)
     .map((id) => agents.find((a) => a.id === id))
     .filter((a): a is AgentProfile => Boolean(a));
   const preview = members.slice(0, 4);
@@ -122,6 +136,7 @@ const FolderTile: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
           </span>
           <span className={`block text-xs leading-snug ${theme.mutedText}`}>
             {t.folder} · {members.length} {t.agents.toLowerCase()}
+            {subFolderCount > 0 && ` · ${subFolderCount} ${t.subFolders}`}
           </span>
         </span>
       </button>
@@ -129,24 +144,31 @@ const FolderTile: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
   );
 };
 
-/** Open-folder overlay: full agent cards + folder deletion. */
+/**
+ * Open-folder overlay: sub-folder tiles first, then full agent cards.
+ * Opening a sub-folder navigates within the overlay; the back chevron
+ * returns to the parent folder.
+ */
 const FolderOverlay: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
-  const { theme, t, agents, setOpenFolderId, deleteFolder } = useApp();
+  const { theme, t, agents, folders, setOpenFolderId, deleteFolder } = useApp();
   const dialogRef = useRef<HTMLDivElement>(null);
   const members = folder.agentIds
     .map((id) => agents.find((a) => a.id === id))
     .filter((a): a is AgentProfile => Boolean(a));
+  const subFolders = folders.filter((f) => f.parentId === folder.id);
 
   useEffect(() => {
     dialogRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpenFolderId(null);
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [setOpenFolderId]);
+  }, [setOpenFolderId, folder.id]);
 
-  return (
+  // Portaled to <body> so the fixed overlay escapes the scroll container's
+  // containing block and reliably layers above the fixed TopBar.
+  return createPortal(
     <div
-      className="fixed inset-0 z-[55] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm"
       onClick={() => setOpenFolderId(null)}
     >
       <div
@@ -159,8 +181,26 @@ const FolderOverlay: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
         className={`w-full max-w-2xl max-h-[80vh] overflow-y-auto custom-scrollbar rounded-[2rem] p-5 space-y-4 backdrop-blur-2xl border ${theme.glassBorder} animate-fade-up`}
         style={{ backgroundColor: theme.isDark ? 'rgba(2,6,23,0.85)' : 'rgba(255,255,255,0.85)' }}
       >
-        <div className="flex items-center justify-between gap-2">
-          <h3 className={`text-sm font-bold uppercase tracking-wide ${theme.primaryText}`}>{folder.name}</h3>
+        {/* Sticky so the back/delete/close controls stay reachable even when
+            the folder holds many agents and the content scrolls. */}
+        <div
+          className="flex items-center justify-between gap-2 sticky top-0 -mx-5 -mt-5 px-5 py-3 z-10 rounded-t-[2rem] backdrop-blur-2xl"
+          style={{ backgroundColor: theme.isDark ? 'rgba(2,6,23,0.85)' : 'rgba(255,255,255,0.85)' }}
+        >
+          <div className="flex items-center gap-1 min-w-0">
+            {folder.parentId && (
+              <button
+                onClick={() => setOpenFolderId(folder.parentId!)}
+                aria-label={t.back}
+                className={`p-2 rounded-full shrink-0 ${theme.glassHover} ${theme.primaryText}`}
+              >
+                <ChevronLeft size={16} aria-hidden />
+              </button>
+            )}
+            <h3 className={`text-sm font-bold uppercase tracking-wide truncate ${theme.primaryText}`}>
+              {folder.name}
+            </h3>
+          </div>
           <div className="flex items-center gap-1">
             <button
               onClick={() => deleteFolder(folder.id)}
@@ -178,13 +218,46 @@ const FolderOverlay: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {members.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} />
-          ))}
-        </div>
+
+        {subFolders.length > 0 && (
+          <nav aria-label={t.subFolders} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {subFolders.map((sub) => {
+              const count =
+                sub.agentIds.length +
+                folders.filter((f) => f.parentId === sub.id).reduce((n, f) => n + f.agentIds.length, 0);
+              return (
+                <Panel key={sub.id} className={theme.glassHover}>
+                  <button
+                    onClick={() => setOpenFolderId(sub.id)}
+                    aria-label={`${t.openFolder}: ${sub.name} (${count})`}
+                    className="w-full p-4 flex flex-col items-start gap-2 text-left"
+                  >
+                    <span className={`p-2.5 rounded-2xl ${theme.iconBg}`}>
+                      <Folder size={18} strokeWidth={1.5} className={theme.primaryText} aria-hidden />
+                    </span>
+                    <span className={`block font-bold text-sm tracking-wide uppercase truncate w-full ${theme.primaryText}`}>
+                      {sub.name}
+                    </span>
+                    <span className={`text-xs ${theme.mutedText}`}>
+                      {count} {t.agents.toLowerCase()}
+                    </span>
+                  </button>
+                </Panel>
+              );
+            })}
+          </nav>
+        )}
+
+        {members.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {members.map((agent) => (
+              <AgentCard key={agent.id} agent={agent} />
+            ))}
+          </div>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -262,9 +335,11 @@ const AgentDesktop: React.FC = () => {
   } = useApp();
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
 
-  // Agents living inside a folder are not repeated at top level.
+  // Agents living inside any folder (any depth) are not repeated at top
+  // level, and only ROOT folders (no parentId) tile the desktop.
   const folderedIds = new Set(folders.flatMap((f) => f.agentIds));
   const topLevelAgents = agents.filter((a) => !folderedIds.has(a.id));
+  const rootFolders = folders.filter((f) => !f.parentId);
   const openFolder = folders.find((f) => f.id === openFolderId);
   const enoughSelected = selectedAgentIds.length >= 2;
 
@@ -317,7 +392,7 @@ const AgentDesktop: React.FC = () => {
       <ProposalsPanel />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-        {folders.map((folder) => (
+        {rootFolders.map((folder) => (
           <FolderTile key={folder.id} folder={folder} />
         ))}
         {topLevelAgents.map((agent) => (

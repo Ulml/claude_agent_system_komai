@@ -27,7 +27,8 @@ import type {
   TaskNode,
   WorkEvent,
 } from './types';
-import { spaceTechAgents, spaceTechFolder } from './seed_space_tech';
+import { propulsionFolder, spaceTechAgents, spaceTechFolder } from './seed_space_tech';
+import { radProtectionAgents, radProtectionFolder } from './seed_rad_protection';
 
 /* ------------------------------------------------------------------ */
 /* LLM providers — the app is LLM agnostic                             */
@@ -123,21 +124,61 @@ export const seedAgents: AgentProfile[] = [
     name: 'Orchestrateur',
     kind: 'orchestrator',
     icon: Workflow,
-    tagline: 'Décompose les projets en flux d’agents',
-    readme: mkReadme(
-      'Orchestrateur',
-      'La description d’un projet utilisateur, potentiellement ultra-complexe (centaines ou milliers d’étapes).',
-      'Un flux de bout en bout de tâches contractualisées, chacune assignée à un agent, avec suivi temps réel.'
-    ),
+    tagline: 'Décompose les projets et administre l’OS',
+    readme: `# Orchestrateur
+
+## Ce dont il a besoin
+La description d'un projet utilisateur, potentiellement ultra-complexe
+(centaines ou milliers d'étapes), ou une demande d'administration de l'OS
+exprimée dans le méta-chat.
+
+## Ce qu'il réalise
+Il exécute sa boucle standard **SENSE → PLAN → ACT → OBSERVE** (harnais
+Hermes) et supervise le flux de bout en bout des tâches contractualisées.
+
+## Capacités d'administration de l'OS (outils dédiés)
+- **create_folder / create_subfolder** : créer des dossiers et
+  sous-dossiers d'agents sur le bureau (ex. « Technologies Spatiales →
+  Propulsion », « → Protections Anti-Radiations »).
+- **create_agent** : instancier un nouvel agent à partir du harnais
+  standard — seul le contenu (README, skills, liaison LLM, modèle simulé)
+  est spécifique.
+- **verify_agent_sources** : vérifier chaque agent créé contre des
+  **sources internet** via \`web_search\` (croisement des faits du README,
+  citations datées), avec rapport de vérification soumis au Juge avant
+  publication de l'agent sur le bureau.
+
+## Ce qu'il livre
+Un flux de tâches contractualisées avec suivi temps réel, et des agents /
+dossiers créés, vérifiés et validés.
+
+## Communication structurée
+- **Émet** : \`TaskSpecification\` (contrats) vers chaque agent.
+- **Reçoit** : \`TaskOutput\` + \`ConformityReport\` de chaque agent.`,
     mermaidAlgorithm: `flowchart TD
-  GOAL[Objectif projet] --> DECOMPOSE[Décomposition en tâches]
+  GOAL[Objectif projet ou demande d'administration] --> ROUTE{Nature}
+  ROUTE -->|projet| DECOMPOSE[Décomposition en tâches]
   DECOMPOSE --> ASSIGN[Assignation agent par tâche]
   ASSIGN --> CONTRACT[Émission des TaskSpecification]
   CONTRACT --> MONITOR[Supervision temps réel]
   MONITOR -->|rapport non conforme| REASSIGN[Réitération / réassignation]
   REASSIGN --> CONTRACT
-  MONITOR -->|toutes conformes| DONE[Livraison projet]`,
-    skills: ['Décomposition hiérarchique', 'Allocation de ressources', 'Supervision LangGraph'],
+  MONITOR -->|toutes conformes| DONE[Livraison projet]
+  ROUTE -->|administration OS| ADMIN{Outil}
+  ADMIN -->|create_folder / create_subfolder| FOLDER[Dossier ou sous-dossier créé]
+  ADMIN -->|create_agent| AGENT[Agent instancié sur le harnais standard]
+  AGENT --> VERIFY[verify_agent_sources : web_search + citations]
+  VERIFY --> JUDGE[Juge : conformité des faits]
+  JUDGE -->|conforme| PUBLISH[Agent publié sur le bureau]
+  JUDGE -->|non conforme| AGENT`,
+    skills: [
+      'Décomposition hiérarchique',
+      'Allocation de ressources',
+      'Supervision LangGraph',
+      'Création de dossiers & sous-dossiers',
+      'Création d’agents (harnais standard)',
+      'Vérification par sources internet',
+    ],
     llmBinding: { providerId: 'anthropic', model: 'claude-sonnet-5' },
     status: 'idle',
   },
@@ -291,8 +332,10 @@ export const seedAgents: AgentProfile[] = [
     llmBinding: { providerId: 'google', model: 'gemini-3-flash-preview' },
     status: 'idle',
   },
-  // Les huit simulateurs du dossier « Technologies Spatiales » (fichier dédié).
+  // Simulateurs « Technologies Spatiales » (fichiers dédiés) :
+  // sous-dossier Propulsion + sous-dossier Protections Anti-Radiations.
   ...spaceTechAgents,
+  ...radProtectionAgents,
 ];
 
 /* ------------------------------------------------------------------ */
@@ -311,6 +354,8 @@ export const seedFolders: AgentFolder[] = [
     agentIds: ['user-owner', 'user-guest'],
   },
   spaceTechFolder,
+  propulsionFolder,
+  radProtectionFolder,
 ];
 
 /* ------------------------------------------------------------------ */

@@ -54,12 +54,13 @@ interface AppContextType {
   view: View;
   setView: (v: View) => void;
 
-  // Agents & desktop folders
+  // Agents & desktop folders (nested via parentId)
   agents: AgentProfile[];
+  createAgent: (profile: AgentProfile) => void;
   folders: AgentFolder[];
   openFolderId: string | null;
   setOpenFolderId: (id: string | null) => void;
-  createFolder: (name: string, agentIds: string[]) => void;
+  createFolder: (name: string, agentIds: string[], parentId?: string) => void;
   deleteFolder: (id: string) => void;
 
   // Desktop selection (designating a group of agents)
@@ -118,7 +119,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentUserId, setCurrentUserId] = useState('user-owner');
   const [view, setView] = useState<View>({ kind: 'tab', tab: 'HOME' });
 
-  const [agents] = useState<AgentProfile[]>(seedAgents);
+  const [agents, setAgents] = useState<AgentProfile[]>(seedAgents);
   const [folders, setFolders] = useState<AgentFolder[]>(seedFolders);
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -145,15 +146,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   /* ----------------------- Folders & selection ------------------------ */
 
-  const createFolder = useCallback((name: string, agentIds: string[]) => {
+  /**
+   * Creates an agent folder — at the desktop root, or as a SUB-FOLDER when
+   * `parentId` is given. This is also the primitive the Orchestrator's
+   * create_folder / create_subfolder tools call.
+   */
+  const createFolder = useCallback((name: string, agentIds: string[], parentId?: string) => {
     if (!name.trim() || agentIds.length === 0) return;
-    const folder: AgentFolder = { id: `folder-${Date.now()}`, name: name.trim(), agentIds };
+    const folder: AgentFolder = { id: `folder-${Date.now()}`, name: name.trim(), agentIds, parentId };
     // iOS semantics: an agent lives in one folder. Moving it into the new
-    // folder removes it from any previous one; emptied folders disappear.
+    // folder removes it from any previous one; emptied LEAF folders
+    // disappear (parents of sub-folders survive even with zero agents).
     setFolders((prev) => [
       ...prev
         .map((f) => ({ ...f, agentIds: f.agentIds.filter((id) => !agentIds.includes(id)) }))
-        .filter((f) => f.agentIds.length > 0),
+        .filter((f) => f.agentIds.length > 0 || prev.some((child) => child.parentId === f.id)),
       folder,
     ]);
     setSelectedAgentIds([]);
@@ -161,9 +168,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const deleteFolder = useCallback((id: string) => {
-    // Deleting a folder releases its agents back to the desktop root.
-    setFolders((prev) => prev.filter((f) => f.id !== id));
+    // Deleting a folder releases its agents to the desktop root and
+    // re-parents its sub-folders to the deleted folder's own parent.
+    setFolders((prev) => {
+      const deleted = prev.find((f) => f.id === id);
+      return prev
+        .filter((f) => f.id !== id)
+        .map((f) => (f.parentId === id ? { ...f, parentId: deleted?.parentId } : f));
+    });
     setOpenFolderId((current) => (current === id ? null : current));
+  }, []);
+
+  /** Registers a new agent (Orchestrator create_agent tool primitive). */
+  const createAgent = useCallback((profile: AgentProfile) => {
+    setAgents((prev) => (prev.some((a) => a.id === profile.id) ? prev : [...prev, profile]));
   }, []);
 
   const toggleAgentSelection = useCallback((id: string) => {
@@ -362,6 +380,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     view,
     setView,
     agents,
+    createAgent,
     folders,
     openFolderId,
     setOpenFolderId,
