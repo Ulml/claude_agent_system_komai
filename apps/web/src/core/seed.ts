@@ -27,6 +27,7 @@ import type {
   TaskNode,
   WorkEvent,
 } from './types';
+import { spaceTechAgents, spaceTechFolder } from './seed_space_tech';
 
 /* ------------------------------------------------------------------ */
 /* LLM providers — the app is LLM agnostic                             */
@@ -290,6 +291,8 @@ export const seedAgents: AgentProfile[] = [
     llmBinding: { providerId: 'google', model: 'gemini-3-flash-preview' },
     status: 'idle',
   },
+  // Les huit simulateurs du dossier « Technologies Spatiales » (fichier dédié).
+  ...spaceTechAgents,
 ];
 
 /* ------------------------------------------------------------------ */
@@ -307,6 +310,7 @@ export const seedFolders: AgentFolder[] = [
     name: 'Utilisateurs',
     agentIds: ['user-owner', 'user-guest'],
   },
+  spaceTechFolder,
 ];
 
 /* ------------------------------------------------------------------ */
