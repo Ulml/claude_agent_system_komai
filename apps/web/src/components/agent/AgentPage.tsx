@@ -13,6 +13,7 @@ import React, { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Panel, MicroLabel, StatusPill, CodeBlock } from '@/components/ui/Glass';
 import { Markdown } from '@/components/ui/Markdown';
+import MethodSection from './MethodSection';
 import type { AgentProfile, LearningMode } from '@/core/types';
 
 type AgentTab = 'readme' | 'inputs' | 'work' | 'conformity' | 'learning';
@@ -93,6 +94,9 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
               <Markdown source={agent.readme} />
             </Panel>
             <CodeBlock label={t.algorithm}>{agent.mermaidAlgorithm}</CodeBlock>
+            {/* Mandatory computation descriptor: I/O graph, explained
+                formulas, SOTA source links, numeric self-checks. */}
+            <MethodSection agent={agent} />
             <Panel className="p-5">
               <MicroLabel className="mb-2">{t.skills}</MicroLabel>
               <ul className="flex flex-wrap gap-2">

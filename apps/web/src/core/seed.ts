@@ -29,6 +29,7 @@ import type {
 } from './types';
 import { propulsionFolder, spaceTechAgents, spaceTechFolder } from './seed_space_tech';
 import { radProtectionAgents, radProtectionFolder } from './seed_rad_protection';
+import { agentMethods } from './agent_methods';
 
 /* ------------------------------------------------------------------ */
 /* LLM providers — the app is LLM agnostic                             */
@@ -102,7 +103,7 @@ ${delivers}
 /* Agents (humans included — same UI, same structure)                  */
 /* ------------------------------------------------------------------ */
 
-export const seedAgents: AgentProfile[] = [
+const rawAgents: AgentProfile[] = [
   {
     id: 'system-llm',
     name: 'LLM Général',
@@ -148,6 +149,17 @@ Hermes) et supervise le flux de bout en bout des tâches contractualisées.
   citations datées), avec rapport de vérification soumis au Juge avant
   publication de l'agent sur le bureau.
 
+## Règle SOTA imposée à tout agent créé (docs/AGENT_STANDARD.md)
+\`create_agent\` REFUSE tout agent non-humain dépourvu d'une **méthode de
+calcul conforme**, qui doit contenir les trois éléments :
+1. un **graphe** de l'algorithme de calcul *données d'entrée → données de
+   sortie* ;
+2. l'**enchaînement des formules** mathématiques expliqué pour non-spécialiste ;
+3. un **lien web vers la source SOTA** démontrant chaque partie du calcul.
+La conformité est vérifiée avant publication ; l'agent est en outre validé
+sur un **cas connu** (entrée → sortie attendue) pour prouver qu'il donne le
+bon résultat.
+
 ## Ce qu'il livre
 Un flux de tâches contractualisées avec suivi temps réel, et des agents /
 dossiers créés, vérifiés et validés.
@@ -167,8 +179,10 @@ dossiers créés, vérifiés et validés.
   ROUTE -->|administration OS| ADMIN{Outil}
   ADMIN -->|create_folder / create_subfolder| FOLDER[Dossier ou sous-dossier créé]
   ADMIN -->|create_agent| AGENT[Agent instancié sur le harnais standard]
-  AGENT --> VERIFY[verify_agent_sources : web_search + citations]
-  VERIFY --> JUDGE[Juge : conformité des faits]
+  AGENT --> METHOD[Méthode requise : graphe I/O + formules + sources SOTA]
+  METHOD --> VERIFY[verify_agent_sources : web_search + citations]
+  VERIFY --> CHECK[Vérif. sur cas connu : entrée → sortie attendue]
+  CHECK --> JUDGE[Juge : conformité des faits & du calcul]
   JUDGE -->|conforme| PUBLISH[Agent publié sur le bureau]
   JUDGE -->|non conforme| AGENT`,
     skills: [
@@ -178,6 +192,7 @@ dossiers créés, vérifiés et validés.
       'Création de dossiers & sous-dossiers',
       'Création d’agents (harnais standard)',
       'Vérification par sources internet',
+      'Exigence méthode : graphe I/O + formules + sources SOTA',
     ],
     llmBinding: { providerId: 'anthropic', model: 'claude-sonnet-5' },
     status: 'idle',
@@ -337,6 +352,17 @@ dossiers créés, vérifiés et validés.
   ...spaceTechAgents,
   ...radProtectionAgents,
 ];
+
+/**
+ * Attach the mandatory computation method (graph + explained formulas + SOTA
+ * links) to EVERY agent from the SSOT map. This is what enforces the rule
+ * uniformly across the OS — an agent without a method entry is flagged by the
+ * UI's conformity badge.
+ */
+export const seedAgents: AgentProfile[] = rawAgents.map((a) => ({
+  ...a,
+  method: agentMethods[a.id] ?? a.method,
+}));
 
 /* ------------------------------------------------------------------ */
 /* Desktop folders — group agents on the home screen (iOS-style)       */

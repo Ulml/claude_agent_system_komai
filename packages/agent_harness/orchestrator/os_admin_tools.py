@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 
 from contracts import (
     AgentFolder,
+    AgentKind,
     AgentProfile,
     ConformityCriterion,
     ConformityReport,
@@ -83,11 +84,22 @@ class OSAdminTools:
     def create_agent(self, profile: AgentProfile) -> AgentProfile:
         """Register a new agent built on the standard harness.
 
-        The profile carries only CONTENT (readme, skills, llm_binding);
-        behaviour always comes from core.harness_graph.AgentHarness.
+        The profile carries only CONTENT (readme, skills, llm_binding,
+        method); behaviour always comes from core.harness_graph.AgentHarness.
+
+        RULE (docs/AGENT_STANDARD.md): an agent is refused unless it carries a
+        conform computation method — an input→output graph, an explained
+        formula chain, and one SOTA web source per part of the calculation.
+        Humans (kind == HUMAN) are exempt from the formula requirement.
         """
         if any(a.id == profile.id for a in self.state.agents):
             raise ValueError(f"Agent déjà existant : {profile.id}")
+        if profile.kind != AgentKind.HUMAN:
+            if profile.method is None or not profile.method.is_conform():
+                raise ValueError(
+                    "Agent refusé : méthode de calcul manquante ou incomplète "
+                    "(graphe entrée→sortie + formules expliquées + sources SOTA requis)."
+                )
         self.state.agents.append(profile)
         return profile
 
@@ -104,8 +116,46 @@ class OSAdminTools:
         found. The resulting report goes through the Judge gate before the
         agent is published on the desktop.
         """
-        claims = self._extract_claims(agent.readme, max_claims)
         criteria: list[ConformityCriterion] = []
+
+        # RULE checks first: the three mandatory parts of the method.
+        method = agent.method
+        criteria.append(
+            ConformityCriterion(
+                name="Graphe entrée→sortie",
+                passed=bool(method and method.graph),
+                comment="Graphe de l'algorithme de calcul présent." if method and method.graph else "Manquant.",
+            )
+        )
+        criteria.append(
+            ConformityCriterion(
+                name="Formules expliquées",
+                passed=bool(method and method.formulas),
+                comment=f"{len(method.formulas)} formule(s) expliquée(s)." if method and method.formulas else "Manquant.",
+            )
+        )
+        # One reachable SOTA source per part of the calculation.
+        sources = method.sources if method else []
+        criteria.append(
+            ConformityCriterion(
+                name="Sources SOTA",
+                passed=bool(sources),
+                comment=f"{len(sources)} source(s) SOTA liée(s)." if sources else "Manquant.",
+            )
+        )
+        for src in sources:
+            evidence = self.search(f"{agent.name} {src.covers} {src.url}")
+            criteria.append(
+                ConformityCriterion(
+                    name=f"Source vérifiée : {src.covers[:50]}",
+                    passed=src.url.startswith("https://")
+                    and bool(evidence)
+                    and not evidence.startswith("[web_search]"),
+                    comment=evidence[:200],
+                )
+            )
+
+        claims = self._extract_claims(agent.readme, max_claims)
         for claim in claims:
             evidence = self.search(f"{agent.name} {claim}")
             criteria.append(

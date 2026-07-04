@@ -76,9 +76,41 @@ class LLMBinding(BaseModel):
     model: str
 
 
+class ComputeFormula(BaseModel):
+    """One explained step of an agent's formula chain (for non-specialists)."""
+
+    name: str
+    formula: str
+    explanation: str = ""
+
+
+class SotaSource(BaseModel):
+    """A web link to the SOTA reference demonstrating part of the calc."""
+
+    covers: str = ""
+    label: str
+    url: str
+
+
+class ComputeMethod(BaseModel):
+    """Mandatory computation descriptor of every agent (docs/AGENT_STANDARD).
+
+    graph    : Mermaid graph, input data → output data;
+    formulas : explained chain of formulas;
+    sources  : one SOTA web link per part of the computation.
+    """
+
+    graph: str
+    formulas: list[ComputeFormula] = Field(default_factory=list)
+    sources: list[SotaSource] = Field(default_factory=list)
+
+    def is_conform(self) -> bool:
+        return bool(self.graph and self.formulas and self.sources)
+
+
 class AgentProfile(BaseModel):
     """A persistent autonomous agent. The structure is identical for all
-    agents; only the content (readme, skills, binding) differs."""
+    agents; only the content (readme, skills, binding, method) differs."""
 
     id: str
     name: str
@@ -89,6 +121,8 @@ class AgentProfile(BaseModel):
     skills: list[str] = Field(default_factory=list)
     llm_binding: LLMBinding
     status: Literal["idle", "working", "waiting"] = "idle"
+    # Mandatory computation descriptor (graph + explained formulas + sources).
+    method: Optional[ComputeMethod] = None
 
 
 class AgentFolder(BaseModel):

@@ -73,6 +73,51 @@ export type AgentKind =
   | 'coding'       // KOMAÏ Coding — the GitHub-connected IDE agent
   | 'human';       // a human user, rendered with the same UI as an agent
 
+/** One step of the explained formula chain (for non-specialists). */
+export interface ComputeFormula {
+  /** Short name of the quantity computed at this step. */
+  name: string;
+  /** The formula itself, plain text (e.g. "Δv = ve · ln(m0/mf)"). */
+  formula: string;
+  /** Plain-language explanation understandable without expertise. */
+  explanation: string;
+}
+
+/** A web link to the SOTA source demonstrating one part of the computation. */
+export interface SotaSource {
+  /** What part of the computation this source demonstrates. */
+  covers: string;
+  label: string;
+  url: string;
+}
+
+/**
+ * The MANDATORY computation descriptor every agent of the OS must carry
+ * (see docs/AGENT_STANDARD.md). Three parts, enforced by the agent-creator:
+ *   1. `graph`    — Mermaid graph of the input-data → output-data algorithm;
+ *   2. `formulas` — the explained chain of mathematical formulas;
+ *   3. `sources`  — one web link to the SOTA reference per part of the calc.
+ * `check` optionally runs the real computation on a known case so the agent
+ * can be proven to "give the right result".
+ */
+export interface ComputeMethod {
+  /** Mermaid: input data → … → output data. */
+  graph: string;
+  formulas: ComputeFormula[];
+  sources: SotaSource[];
+  /** Numeric self-check(s): known input → expected output (verifiable). */
+  checks?: ComputeCheck[];
+}
+
+export interface ComputeCheck {
+  label: string;
+  got: number;
+  expected: number;
+  /** Relative tolerance (default 1e-3). */
+  tol?: number;
+  unit?: string;
+}
+
 /**
  * A persistent autonomous agent. The STRUCTURE is identical for all agents
  * (Hermes-style harness); only the CONTENT (readme, skills, memory, binding)
@@ -93,6 +138,13 @@ export interface AgentProfile {
   skills: string[];
   llmBinding: LLMBinding;
   status: 'idle' | 'working' | 'waiting';
+  /**
+   * Mandatory computation descriptor (graph + explained formulas + SOTA
+   * links). Optional at the type level so partial/legacy profiles compile,
+   * but the UI flags any agent missing it and the agent-creator refuses to
+   * publish an agent without it.
+   */
+  method?: ComputeMethod;
 }
 
 /**

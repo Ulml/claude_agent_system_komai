@@ -8,6 +8,14 @@ import type { Language } from './types';
 type Dict = Record<string, string>;
 
 const FR: Dict = {
+  method: 'Méthode de calcul (entrée → sortie)',
+  methodGraph: 'Graphe de l’algorithme (données d’entrée → sortie)',
+  methodFormulas: 'Enchaînement des formules (expliqué)',
+  methodSources: 'Sources SOTA (démonstration)',
+  methodChecks: 'Vérifications numériques (cas connu)',
+  methodConform: 'Descriptif conforme',
+  methodPartial: 'Descriptif incomplet',
+  methodMissing: 'Aucune méthode de calcul renseignée : graphe, formules et sources SOTA requis pour tout agent.',
   subFolders: 'sous-dossiers',
   newFolder: 'Nouveau dossier',
   folderName: 'Nom du dossier',
@@ -120,6 +128,14 @@ const FR: Dict = {
 };
 
 const EN: Dict = {
+  method: 'Computation method (input → output)',
+  methodGraph: 'Algorithm graph (input data → output data)',
+  methodFormulas: 'Formula chain (explained)',
+  methodSources: 'SOTA sources (demonstration)',
+  methodChecks: 'Numeric checks (known case)',
+  methodConform: 'Descriptor conform',
+  methodPartial: 'Descriptor incomplete',
+  methodMissing: 'No computation method: a graph, explained formulas and SOTA sources are required for every agent.',
   subFolders: 'sub-folders',
   newFolder: 'New folder',
   folderName: 'Folder name',
@@ -232,6 +248,14 @@ const EN: Dict = {
 };
 
 const ES: Dict = {
+  method: 'Método de cálculo (entrada → salida)',
+  methodGraph: 'Grafo del algoritmo (datos de entrada → salida)',
+  methodFormulas: 'Cadena de fórmulas (explicada)',
+  methodSources: 'Fuentes SOTA (demostración)',
+  methodChecks: 'Verificaciones numéricas (caso conocido)',
+  methodConform: 'Descriptivo conforme',
+  methodPartial: 'Descriptivo incompleto',
+  methodMissing: 'Sin método de cálculo: se requieren grafo, fórmulas explicadas y fuentes SOTA para cada agente.',
   subFolders: 'subcarpetas',
   newFolder: 'Nueva carpeta',
   folderName: 'Nombre de la carpeta',
