@@ -48,7 +48,9 @@ aucun composant ne code une couleur en dur.
    sélecteur d'utilisateur (démo périmètres), réglages.
 2. **Sidebar** — auto-rétractable depuis le bord gauche (`w-5` → `w-72` au
    survol/focus, bouton d'épingle pour le tactile) ; liste des projets.
-3. **Vue centrale** — bureau d'agents (grille bento 2→4 colonnes), Flux,
+3. **Vue centrale** — bureau d'agents (grille bento 2→4 colonnes, tuiles
+   agent et tuiles dossier de même carré arrondi ; un dossier montre ses
+   agents en miniature 2×2 et s'ouvre en surcouche de verre), Flux,
    page Agent, KOMAÏ.
 4. **MetaChatDock** — ancré en bas de CHAQUE page : pilule d'onglets de
    navigation + fenêtre de chat unique + surcouche d'historique.

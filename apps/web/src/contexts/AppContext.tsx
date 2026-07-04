@@ -9,6 +9,7 @@
  */
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import type {
+  AgentFolder,
   AgentProfile,
   ChatMessage,
   Language,
@@ -24,6 +25,7 @@ import { defaultTheme } from '@/core/themes';
 import { translations } from '@/core/i18n';
 import {
   seedAgents,
+  seedFolders,
   seedLearning,
   seedProject,
   seedProviders,
@@ -50,8 +52,11 @@ interface AppContextType {
   view: View;
   setView: (v: View) => void;
 
-  // Agents
+  // Agents & desktop folders
   agents: AgentProfile[];
+  folders: AgentFolder[];
+  openFolderId: string | null;
+  setOpenFolderId: (id: string | null) => void;
 
   // Projects & tasks
   projects: Project[];
@@ -97,6 +102,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [view, setView] = useState<View>({ kind: 'tab', tab: 'HOME' });
 
   const [agents] = useState<AgentProfile[]>(seedAgents);
+  const [folders] = useState<AgentFolder[]>(seedFolders);
+  const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([seedProject]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(seedProject.id);
   const [tasks, setTasks] = useState<TaskNode[]>(seedTasks);
@@ -242,6 +249,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     view,
     setView,
     agents,
+    folders,
+    openFolderId,
+    setOpenFolderId,
     projects,
     selectedProjectId,
     setSelectedProjectId,

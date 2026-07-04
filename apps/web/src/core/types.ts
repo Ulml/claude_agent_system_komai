@@ -95,6 +95,17 @@ export interface AgentProfile {
   status: 'idle' | 'working' | 'waiting';
 }
 
+/**
+ * A desktop folder grouping agents on the home screen (iOS-style).
+ * Rendered with the SAME rounded-square tile as an agent icon; the member
+ * agents appear as miniatures inside. Opening it reveals the full cards.
+ */
+export interface AgentFolder {
+  id: string;
+  name: string;
+  agentIds: string[];
+}
+
 /* ------------------------------------------------------------------ */
 /* Tasks, contracts and conformity (agent-to-agent messages)           */
 /* ------------------------------------------------------------------ */

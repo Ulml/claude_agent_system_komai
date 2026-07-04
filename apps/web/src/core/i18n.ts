@@ -8,6 +8,9 @@ import type { Language } from './types';
 type Dict = Record<string, string>;
 
 const FR: Dict = {
+  folder: 'Dossier',
+  openFolder: 'Ouvrir le dossier',
+  closeFolder: 'Fermer le dossier',
   appName: 'Template_LM',
   appTagline: "Système d'exploitation IA",
   home: 'Accueil',
@@ -92,6 +95,9 @@ const FR: Dict = {
 };
 
 const EN: Dict = {
+  folder: 'Folder',
+  openFolder: 'Open folder',
+  closeFolder: 'Close folder',
   appName: 'Template_LM',
   appTagline: 'AI Operating System',
   home: 'Home',
@@ -176,6 +182,9 @@ const EN: Dict = {
 };
 
 const ES: Dict = {
+  folder: 'Carpeta',
+  openFolder: 'Abrir carpeta',
+  closeFolder: 'Cerrar carpeta',
   appName: 'Template_LM',
   appTagline: 'Sistema operativo de IA',
   home: 'Inicio',

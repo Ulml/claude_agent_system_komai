@@ -45,6 +45,12 @@ comportant des centaines voire des milliers d'étapes.
 - **Exception** : KOMAÏ Coding, IDE de codage connecté à GitHub, conserve son
   architecture spécifique (fichiers, éditeur, aperçu live, harnais — voir TRD).
 - **Les humains sont des agents** : même carte sur le bureau, même page.
+- **Dossiers d'agents** : les agents peuvent être regroupés à l'écran dans
+  des dossiers (façon iOS). La tuile d'un dossier a la même forme de carré
+  arrondi qu'une icône d'agent ; les agents membres y apparaissent en
+  miniature (grille 2×2, badge « +n » au-delà de 4). L'ouverture du dossier
+  révèle les cartes complètes ; les agents d'un dossier ne sont pas répétés
+  au niveau racine du bureau.
 
 ## 5. Communication structurée inter-agents
 

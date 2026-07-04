@@ -18,6 +18,7 @@ import {
   Workflow,
 } from 'lucide-react';
 import type {
+  AgentFolder,
   AgentProfile,
   LearningEntry,
   LLMProvider,
@@ -260,6 +261,23 @@ export const seedAgents: AgentProfile[] = [
     skills: ['Revue de livrables'],
     llmBinding: { providerId: 'google', model: 'gemini-3-flash-preview' },
     status: 'idle',
+  },
+];
+
+/* ------------------------------------------------------------------ */
+/* Desktop folders — group agents on the home screen (iOS-style)       */
+/* ------------------------------------------------------------------ */
+
+export const seedFolders: AgentFolder[] = [
+  {
+    id: 'folder-production',
+    name: 'Pôle Production',
+    agentIds: ['researcher', 'analyst', 'writer'],
+  },
+  {
+    id: 'folder-users',
+    name: 'Utilisateurs',
+    agentIds: ['user-owner', 'user-guest'],
   },
 ];
 
