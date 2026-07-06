@@ -14,6 +14,7 @@ import TopBar from '@/components/layout/TopBar';
 import Sidebar from '@/components/layout/Sidebar';
 import MetaChatDock from '@/components/chat/MetaChatDock';
 import AgentDesktop from '@/components/desktop/AgentDesktop';
+import FolderView from '@/components/desktop/FolderView';
 import FluxView from '@/components/flux/FluxView';
 import AgentPage from '@/components/agent/AgentPage';
 import KomaCodingView from '@/components/koma/KomaCodingView';
@@ -21,22 +22,18 @@ import SettingsModal from '@/components/modals/SettingsModal';
 import ProjectModal from '@/components/modals/ProjectModal';
 
 const ActiveView: React.FC = () => {
-  const { view, agents } = useApp();
+  const { view, agents, openFolderId } = useApp();
   if (view.kind === 'agent') {
     const agent = agents.find((a) => a.id === view.agentId);
-    // KOMAÏ Coding keeps its dedicated IDE architecture even when opened
-    // from the desktop; every other agent uses the standard 5-tab page.
+    // KOMAÏ Coding keeps its dedicated IDE architecture; every other agent
+    // uses the standard tabbed page (tabs live in the dock).
     if (agent?.kind === 'coding') return <KomaCodingView />;
     if (agent) return <AgentPage agent={agent} />;
   }
-  switch (view.kind === 'tab' ? view.tab : 'HOME') {
-    case 'FLUX':
-      return <FluxView />;
-    case 'KOMAI':
-      return <KomaCodingView />;
-    default:
-      return <AgentDesktop />;
-  }
+  if (view.kind === 'tab' && view.tab === 'FLUX') return <FluxView />;
+  // HOME: a folder opened inline replaces the desktop (no visible difference);
+  // the top-left arrow navigates back up.
+  return openFolderId ? <FolderView /> : <AgentDesktop />;
 };
 
 const Shell: React.FC = () => {

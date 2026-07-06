@@ -100,8 +100,14 @@ Aucun texte libre inter-agents : tout passe par ces modèles Pydantic
   projet (avant / après / entre ses tâches).
 - Application double : côté client (`AppContext.visibleTasks`) et côté
   serveur (`firebase/firestore.rules`).
-- Le sélecteur d'utilisateur de la barre supérieure permet de constater la
-  bascule périmètre → méta-tâches en démo.
+- **Identification & invitations** : l'utilisateur s'identifie à la connexion
+  et voit l'environnement autorisé pour lui (tout par défaut). Il n'y a pas
+  de liste déroulante d'utilisateurs. Un utilisateur qui invite ne peut
+  accorder que tout ou partie de ce à quoi il a lui-même accès ; s'il désigne
+  un agent auquel il n'a pas accès, une **demande est envoyée au
+  propriétaire**, qui décide d'accorder l'accès à l'invité seul ou aux deux
+  (invitant + invité). Voir `AppContext.invite/resolveRequest` et
+  `components/modals/InviteModal.tsx`.
 
 ## 7. Apprentissage des agents (4 modes)
 

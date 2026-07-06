@@ -53,7 +53,26 @@ aucun composant ne code une couleur en dur.
    agents en miniature 2×2 et s'ouvre en surcouche de verre), Flux,
    page Agent, KOMAÏ.
 4. **MetaChatDock** — ancré en bas de CHAQUE page : pilule d'onglets de
-   navigation + fenêtre de chat unique + surcouche d'historique.
+   navigation **contextuels** + fenêtre de chat unique + surcouche
+   d'historique. Sur l'accueil : « Accueil » / « Flux ». Dans un agent : les
+   onglets de l'agent (Entrées, Travail en direct, Conformité, Apprentissage,
+   Compétences, Logs, Présentation). Le chat parle à l'agent affiché (pas de
+   liste déroulante de destinataire). KOMAÏ Coding est une icône d'agent,
+   jamais un onglet.
+
+### Pages d'agent (affichage sans cadre)
+- Contenu affiché **sans encadré** (pas de cartes arrondies) : une page web
+  classique. Les diagrammes (algorithme, méthode de calcul) sont rendus comme
+  de **vrais diagrammes SVG** (`components/ui/MermaidFlow.tsx`), pas du texte
+  dans une fenêtre noire.
+- Ordre des onglets : Entrées (défaut) → Travail en direct (auto au lancement)
+  → Conformité (courbe d'évolution du score de fin de run) → Apprentissage
+  (fichiers de rejeu et d'exemple à télécharger) → Compétences (synthétisées
+  au fil des itérations) → Logs (menu au survol : remarques / juge /
+  apprentissages) → Présentation. En l'absence de contenu, une courte
+  définition de l'onglet est affichée.
+- Le nom de l'agent apparaît dans la barre supérieure quand son titre en page
+  disparaît au défilement.
 
 ## Mouvement
 

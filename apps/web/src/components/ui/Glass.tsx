@@ -39,10 +39,13 @@ export const MicroLabel: React.FC<{ children: React.ReactNode; className?: strin
   );
 };
 
-/** Colored status pill for tasks and agents. */
+/** Colored status pill for tasks and agents, with a clear human label. */
 export const StatusPill: React.FC<{ status: TaskStatus | 'idle' | 'waiting' | 'working' }> = ({
   status,
 }) => {
+  const { t } = useApp();
+  // Human-readable label (no cryptic "IDLE" — shows "Disponible", etc.).
+  const label = (t[`status_${status}`] as string) ?? status;
   // Colors chosen for WCAG AA contrast; the palette flips with theme.isDark
   // because theming is state-driven (not the Tailwind `dark` class).
   const { theme } = useApp();
@@ -69,10 +72,10 @@ export const StatusPill: React.FC<{ status: TaskStatus | 'idle' | 'waiting' | 'w
     <span
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${styles[status]}`}
     >
-      {status === 'running' && (
+      {(status === 'running' || status === 'working') && (
         <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-current animate-pulse-dot" />
       )}
-      {status}
+      {label}
     </span>
   );
 };

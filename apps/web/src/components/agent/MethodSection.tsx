@@ -10,7 +10,8 @@
 import React from 'react';
 import { AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
-import { Panel, MicroLabel, CodeBlock } from '@/components/ui/Glass';
+import { MicroLabel } from '@/components/ui/Glass';
+import MermaidFlow from '@/components/ui/MermaidFlow';
 import type { AgentProfile } from '@/core/types';
 
 /** True when the agent carries the 3 mandatory parts (graph + formulas + sources). */
@@ -25,10 +26,10 @@ const MethodSection: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
 
   if (!m) {
     return (
-      <Panel className="p-5 flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <AlertTriangle size={18} className="text-amber-500 shrink-0" aria-hidden />
         <p className={`text-sm ${theme.secondaryText}`}>{t.methodMissing}</p>
-      </Panel>
+      </div>
     );
   }
 
@@ -38,7 +39,7 @@ const MethodSection: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
     Math.abs(got - expected) <= relTol(tol) * Math.max(Math.abs(expected), 1e-12);
 
   return (
-    <Panel className="p-5 space-y-5">
+    <div className="space-y-5">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <MicroLabel>{t.method}</MicroLabel>
         <span
@@ -51,15 +52,18 @@ const MethodSection: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
         </span>
       </div>
 
-      {/* 1 — Input→output algorithm graph */}
-      <CodeBlock label={t.methodGraph}>{m.graph}</CodeBlock>
+      {/* 1 — Input→output algorithm graph (rendered as a real diagram) */}
+      <div className="space-y-2">
+        <MicroLabel>{t.methodGraph}</MicroLabel>
+        <MermaidFlow source={m.graph} ariaLabel={t.methodGraph} />
+      </div>
 
       {/* 2 — Explained formula chain */}
       <div className="space-y-2">
         <MicroLabel>{t.methodFormulas}</MicroLabel>
-        <ol className="space-y-2">
+        <ol className="space-y-3">
           {m.formulas.map((f, i) => (
-            <li key={i} className={`rounded-2xl p-3 ${theme.iconBg}`}>
+            <li key={i}>
               <p className={`text-sm font-semibold ${theme.primaryText}`}>{f.name}</p>
               <p className={`font-mono text-sm my-1 ${theme.secondaryText}`}>{f.formula}</p>
               <p className={`text-xs ${theme.mutedText}`}>{f.explanation}</p>
@@ -118,7 +122,7 @@ const MethodSection: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
           ))}
         </ul>
       </div>
-    </Panel>
+    </div>
   );
 };
 

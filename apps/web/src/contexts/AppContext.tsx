@@ -7,10 +7,11 @@
  * here, which is what keeps every screen (desktop, flow, agent pages,
  * meta-chat) perfectly synchronised.
  */
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AgentFolder,
   AgentProfile,
+  AgentTabId,
   ChatMessage,
   Language,
   LearningEntry,
@@ -22,6 +23,14 @@ import type {
   View,
   WorkEvent,
 } from '@/core/types';
+
+/** A pending request to grant access to an item the inviter cannot reach. */
+export interface AccessRequest {
+  id: string;
+  inviterId: string;
+  inviteeName: string;
+  agentId: string;
+}
 import { defaultTheme } from '@/core/themes';
 import { translations } from '@/core/i18n';
 import {
@@ -46,13 +55,33 @@ interface AppContextType {
   setTheme: (t: ThemeColor) => void;
   t: Record<string, string>;
 
-  // Identity (the current human, itself an agent)
+  // Identity (the current, signed-in human — itself an agent)
   currentUserId: string;
   setCurrentUserId: (id: string) => void;
+
+  // Multi-user access control
+  /** Agents the CURRENT user is allowed to see/use (all by default). */
+  accessibleAgentIds: (userId?: string) => 'all' | string[];
+  hasAccess: (agentId: string, userId?: string) => boolean;
+  invite: (inviteeName: string, agentIds: string[]) => void;
+  accessRequests: AccessRequest[];
+  resolveRequest: (requestId: string, grant: 'invitee' | 'both' | 'deny') => void;
 
   // Navigation
   view: View;
   setView: (v: View) => void;
+  /** Contextual back: agent → its folder/home, folder → parent/root. */
+  goBack: () => void;
+  canGoBack: boolean;
+  // Agent contextual tabs (rendered in the dock, not on the page)
+  agentTab: AgentTabId;
+  setAgentTab: (tab: AgentTabId) => void;
+  /** Sub-selection of the Logs tab (from its hover menu). */
+  logsFilter: 'all' | 'user' | 'judge' | 'learning';
+  setLogsFilter: (f: 'all' | 'user' | 'judge' | 'learning') => void;
+  /** True when the in-page agent title has scrolled out of view. */
+  agentTitleHidden: boolean;
+  setAgentTitleHidden: (hidden: boolean) => void;
 
   // Agents & desktop folders (nested via parentId)
   agents: AgentProfile[];
@@ -91,10 +120,10 @@ interface AppContextType {
   workEvents: WorkEvent[];
   learning: LearningEntry[];
 
-  // Meta-chat
+  // Meta-chat — contextual: talks to the open agent, else the system LLM
   messages: ChatMessage[];
+  /** The agent the chat currently addresses (derived from the view). */
   chatTarget: string;
-  setChatTarget: (id: string) => void;
   sendMessage: (text: string) => Promise<void>;
   isChatLoading: boolean;
 
@@ -116,8 +145,16 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguage] = useState<Language>('FR');
   const [theme, setTheme] = useState<ThemeColor>(defaultTheme);
+  // The signed-in user. 'user-owner' is the owner and sees everything.
   const [currentUserId, setCurrentUserId] = useState('user-owner');
   const [view, setView] = useState<View>({ kind: 'tab', tab: 'HOME' });
+  const [agentTab, setAgentTab] = useState<AgentTabId>('inputs');
+  const [logsFilter, setLogsFilter] = useState<'all' | 'user' | 'judge' | 'learning'>('all');
+  const [agentTitleHidden, setAgentTitleHidden] = useState(false);
+
+  // Access grants: userId → set of agent ids (owner is implicitly 'all').
+  const [grants, setGrants] = useState<Record<string, string[]>>({ 'user-guest': ['writer'] });
+  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
 
   const [agents, setAgents] = useState<AgentProfile[]>(seedAgents);
   const [folders, setFolders] = useState<AgentFolder[]>(seedFolders);
@@ -135,8 +172,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [learning] = useState<LearningEntry[]>(seedLearning);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [chatTarget, setChatTarget] = useState('system-llm');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  // The chat is contextual: it addresses the open agent, else the system LLM.
+  const chatTarget = view.kind === 'agent' ? view.agentId : 'system-llm';
+
+  // Opening a new agent resets its tabs to « Entrées » (default view).
+  useEffect(() => {
+    if (view.kind === 'agent') setAgentTab('inputs');
+  }, [view.kind === 'agent' ? view.agentId : null]);
+
+  // Once the open agent starts a run, auto-switch to « Travail en direct ».
+  const openAgentRunning =
+    view.kind === 'agent' &&
+    tasks.some((task) => task.agentId === view.agentId && task.status === 'running');
+  useEffect(() => {
+    if (openAgentRunning) setAgentTab('work');
+  }, [openAgentRunning]);
 
   const [providers, setProviders] = useState<LLMProvider[]>(seedProviders);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -189,6 +240,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   }, []);
+
+  /* --------------------- Back navigation (top-left arrow) -------------- */
+
+  const canGoBack = view.kind === 'agent' || openFolderId !== null;
+  const goBack = useCallback(() => {
+    // From an agent → back to the home desktop (the folder it was opened
+    // from, if any, is still active). From a folder → to its parent / root.
+    if (view.kind === 'agent') {
+      setView({ kind: 'tab', tab: 'HOME' });
+      return;
+    }
+    if (openFolderId) {
+      const current = folders.find((f) => f.id === openFolderId);
+      setOpenFolderId(current?.parentId ?? null);
+    }
+  }, [view, openFolderId, folders]);
+
+  /* -------------------------- Multi-user access ----------------------- */
+
+  const accessibleAgentIds = useCallback(
+    (userId: string = currentUserId): 'all' | string[] => {
+      // The owner sees everything; others see only their granted agents.
+      if (userId === 'user-owner') return 'all';
+      return grants[userId] ?? [];
+    },
+    [currentUserId, grants]
+  );
+
+  const hasAccess = useCallback(
+    (agentId: string, userId: string = currentUserId): boolean => {
+      const acc = accessibleAgentIds(userId);
+      return acc === 'all' || acc.includes(agentId);
+    },
+    [accessibleAgentIds, currentUserId]
+  );
+
+  const grantTo = useCallback((userId: string, agentIds: string[]) => {
+    setGrants((prev) => {
+      const existing = new Set(prev[userId] ?? []);
+      agentIds.forEach((id) => existing.add(id));
+      return { ...prev, [userId]: [...existing] };
+    });
+  }, []);
+
+  /**
+   * Invite a person to a set of agents. The inviter can only grant what THEY
+   * can access; for anything they cannot, an access request is raised to the
+   * owner, who decides whether to grant it to the invitee alone or to both.
+   */
+  const invite = useCallback(
+    (inviteeName: string, agentIds: string[]) => {
+      const granted = agentIds.filter((id) => hasAccess(id));
+      const forbidden = agentIds.filter((id) => !hasAccess(id));
+      if (granted.length) grantTo(`invitee:${inviteeName}`, granted);
+      if (forbidden.length) {
+        setAccessRequests((prev) => [
+          ...prev,
+          ...forbidden.map((agentId) => ({
+            id: `req-${Date.now()}-${agentId}`,
+            inviterId: currentUserId,
+            inviteeName,
+            agentId,
+          })),
+        ]);
+      }
+    },
+    [hasAccess, grantTo, currentUserId]
+  );
+
+  const resolveRequest = useCallback(
+    (requestId: string, grant: 'invitee' | 'both' | 'deny') => {
+      setAccessRequests((prev) => {
+        const req = prev.find((r) => r.id === requestId);
+        if (req && grant !== 'deny') {
+          grantTo(`invitee:${req.inviteeName}`, [req.agentId]);
+          if (grant === 'both') grantTo(req.inviterId, [req.agentId]);
+        }
+        return prev.filter((r) => r.id !== requestId);
+      });
+    },
+    [grantTo]
+  );
 
   /* --------------------- Curator (meta-node) agent --------------------- */
 
@@ -377,8 +510,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     t,
     currentUserId,
     setCurrentUserId,
+    accessibleAgentIds,
+    hasAccess,
+    invite,
+    accessRequests,
+    resolveRequest,
     view,
     setView,
+    goBack,
+    canGoBack,
+    agentTab,
+    setAgentTab,
+    logsFilter,
+    setLogsFilter,
+    agentTitleHidden,
+    setAgentTitleHidden,
     agents,
     createAgent,
     folders,
@@ -408,7 +554,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     learning,
     messages,
     chatTarget,
-    setChatTarget,
     sendMessage,
     isChatLoading,
     providers,

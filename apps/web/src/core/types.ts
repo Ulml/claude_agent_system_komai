@@ -336,9 +336,30 @@ export interface RepoFile {
 /* Navigation                                                          */
 /* ------------------------------------------------------------------ */
 
-/** Top-level views reachable from the navigation tabs above the meta-chat. */
-export type MainTab = 'HOME' | 'FLUX' | 'KOMAI';
+/** Top-level views reachable from the navigation tabs above the meta-chat.
+ *  KOMAÏ Coding is an agent icon like any other — it is NOT a top tab. */
+export type MainTab = 'HOME' | 'FLUX';
 
 export type View =
   | { kind: 'tab'; tab: MainTab }
   | { kind: 'agent'; agentId: string };
+
+/** The contextual tabs of an agent page, in display order. */
+export type AgentTabId = 'inputs' | 'work' | 'conformity' | 'learning' | 'skills' | 'logs' | 'readme';
+
+/** One point of an agent's end-of-run conformity score history. */
+export interface ConformityPoint {
+  label: string;
+  score: number;
+  /** What triggered this run: a learning loop or a user remark. */
+  trigger: 'learning' | 'user';
+}
+
+/** A traced interaction line for the Logs tab. */
+export interface LogEntry {
+  id: string;
+  agentId: string;
+  category: 'user' | 'judge' | 'learning';
+  text: string;
+  timestamp: number;
+}

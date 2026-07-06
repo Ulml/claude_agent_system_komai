@@ -1,44 +1,66 @@
 /**
- * MetaChatDock — THE core interaction surface of the AI Operating System.
+ * MetaChatDock — the single chat window + contextual navigation tabs,
+ * anchored at the bottom of EVERY page.
  *
- * A single chat window + navigation tabs just above it, anchored at the
- * bottom of EVERY page. From here the user talks to any element of the OS:
- * the general LLM, the orchestrator, any worker agent, the judge or KOMAÏ
- * Coding — selected via the recipient picker. Messages open a floating
- * glass overlay above the input; clicking outside collapses it.
+ * Tabs are CONTEXTUAL:
+ *   - on the home/flow views → « Accueil » and « Flux »;
+ *   - inside an agent → that agent's own tabs (Entrées, Travail en direct,
+ *     Conformité, Apprentissage, Compétences, Logs, Présentation).
+ * KOMAÏ Coding is an agent icon like any other and never appears here.
+ *
+ * The chat is contextual too: it addresses the open agent (no recipient
+ * dropdown); on home it talks to the system LLM.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { AtSign, Loader2, SendHorizonal } from 'lucide-react';
+import { Loader2, ScrollText, SendHorizonal } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import ChatView from './ChatView';
-import type { MainTab } from '@/core/types';
+import type { AgentTabId, MainTab } from '@/core/types';
 
-const TABS: { id: MainTab; labelKey: string }[] = [
+const HOME_TABS: { id: MainTab; labelKey: string }[] = [
   { id: 'HOME', labelKey: 'home' },
   { id: 'FLUX', labelKey: 'flux' },
-  { id: 'KOMAI', labelKey: 'komai' },
+];
+
+const AGENT_TABS: { id: AgentTabId; labelKey: string }[] = [
+  { id: 'inputs', labelKey: 'tabInputs' },
+  { id: 'work', labelKey: 'tabWork' },
+  { id: 'conformity', labelKey: 'tabConformity' },
+  { id: 'learning', labelKey: 'tabLearning' },
+  { id: 'skills', labelKey: 'tabSkills' },
+  { id: 'logs', labelKey: 'tabLogs' },
+  { id: 'readme', labelKey: 'tabReadme' },
 ];
 
 const MetaChatDock: React.FC = () => {
-  const { theme, t, view, setView, agents, chatTarget, setChatTarget, sendMessage, isChatLoading, messages } =
-    useApp();
+  const {
+    theme,
+    t,
+    view,
+    setView,
+    agents,
+    agentTab,
+    setAgentTab,
+    setLogsFilter,
+    chatTarget,
+    sendMessage,
+    isChatLoading,
+    messages,
+  } = useApp();
   const [text, setText] = useState('');
   const [isOverlayVisible, setIsOverlayVisible] = useState(false);
+  const [logsMenuOpen, setLogsMenuOpen] = useState(false);
   const dockRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Collapse the chat overlay when clicking outside the dock.
   useEffect(() => {
     const onPointerDown = (e: MouseEvent) => {
-      if (dockRef.current && !dockRef.current.contains(e.target as Node)) {
-        setIsOverlayVisible(false);
-      }
+      if (dockRef.current && !dockRef.current.contains(e.target as Node)) setIsOverlayVisible(false);
     };
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, []);
 
-  // Restore focus to the input once generation completes.
   useEffect(() => {
     if (!isChatLoading) inputRef.current?.focus();
   }, [isChatLoading]);
@@ -51,7 +73,13 @@ const MetaChatDock: React.FC = () => {
     void sendMessage(trimmed);
   };
 
+  const inAgent = view.kind === 'agent';
+  const activeAgent = inAgent ? agents.find((a) => a.id === view.agentId) : null;
   const activeTab = view.kind === 'tab' ? view.tab : null;
+  const tabBtn = (selected: boolean) =>
+    `px-3 sm:px-4 min-h-[40px] rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${
+      selected ? theme.userBubble : `${theme.secondaryText} ${theme.glassHover}`
+    }`;
 
   return (
     <div ref={dockRef} className="w-full flex flex-col items-center gap-3 z-30 px-3 pb-4 sm:pb-6 shrink-0 relative">
@@ -66,53 +94,89 @@ const MetaChatDock: React.FC = () => {
         </div>
       )}
 
-      {/* Navigation tabs — just above the chat input, on every page */}
+      {/* Contextual navigation tabs */}
       <nav
         role="tablist"
-        aria-label={t.appName}
-        className={`flex items-center gap-1 p-1 rounded-full backdrop-blur-xl border ${theme.glassBg} ${theme.glassBorder}`}
+        aria-label={activeAgent ? activeAgent.name : t.appName}
+        className={`flex items-center gap-1 p-1 rounded-full backdrop-blur-xl border overflow-x-auto max-w-full custom-scrollbar ${theme.glassBg} ${theme.glassBorder}`}
       >
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={() => setView({ kind: 'tab', tab: tab.id })}
-            className={`px-4 sm:px-5 min-h-[40px] rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${
-              activeTab === tab.id
-                ? `${theme.userBubble}`
-                : `${theme.secondaryText} ${theme.glassHover}`
-            }`}
-          >
-            {t[tab.labelKey]}
-          </button>
-        ))}
+        {inAgent
+          ? AGENT_TABS.map((tab) =>
+              tab.id === 'logs' ? (
+                // Logs tab: hover reveals a menu above with the 3 traced views.
+                <div
+                  key={tab.id}
+                  className="relative"
+                  onMouseEnter={() => setLogsMenuOpen(true)}
+                  onMouseLeave={() => setLogsMenuOpen(false)}
+                >
+                  {logsMenuOpen && (
+                    <div
+                      className={`absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-52 p-1.5 rounded-2xl backdrop-blur-xl border ${theme.glassBg} ${theme.glassBorder} shadow-lg`}
+                      role="menu"
+                    >
+                      {(['user', 'judge', 'learning'] as const).map((cat) => (
+                        <button
+                          key={cat}
+                          role="menuitem"
+                          onClick={() => {
+                            setLogsFilter(cat);
+                            setAgentTab('logs');
+                            setLogsMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium ${theme.glassHover} ${theme.primaryText}`}
+                        >
+                          {cat === 'user' ? t.logsUser : cat === 'judge' ? t.logsJudge : t.logsLearning}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    role="tab"
+                    aria-selected={agentTab === 'logs'}
+                    onClick={() => {
+                      setLogsFilter('all');
+                      setAgentTab('logs');
+                    }}
+                    className={`${tabBtn(agentTab === 'logs')} flex items-center gap-1`}
+                  >
+                    <ScrollText size={13} aria-hidden /> {t.tabLogs}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={agentTab === tab.id}
+                  onClick={() => setAgentTab(tab.id)}
+                  className={`${tabBtn(agentTab === tab.id)} whitespace-nowrap`}
+                >
+                  {t[tab.labelKey]}
+                </button>
+              )
+            )
+          : HOME_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                onClick={() => setView({ kind: 'tab', tab: tab.id })}
+                className={tabBtn(activeTab === tab.id)}
+              >
+                {t[tab.labelKey]}
+              </button>
+            ))}
       </nav>
 
-      {/* Single meta-chat input */}
+      {/* Single contextual chat input (talks to the open agent) */}
       <div
         className={`w-full max-w-3xl backdrop-blur-xl border ${theme.glassBg} ${theme.glassBorder} rounded-[2rem] p-2 pl-4 flex items-end gap-2 shadow-[0_8px_32px_rgba(0,0,0,0.05)]`}
       >
-        {/* Recipient picker: system LLM, orchestrator, any agent */}
-        <label className="flex items-center gap-1 pb-2.5 shrink-0">
-          <AtSign size={14} className={theme.mutedText} aria-hidden />
-          <span className="sr-only">{t.chatTarget}</span>
-          <select
-            value={chatTarget}
-            onChange={(e) => setChatTarget(e.target.value)}
-            aria-label={t.chatTarget}
-            className={`text-xs font-semibold bg-transparent max-w-[110px] sm:max-w-none cursor-pointer ${theme.primaryText}`}
-          >
-            {agents
-              .filter((a) => a.kind !== 'human')
-              .map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.kind === 'system' ? t.systemLLM : a.name}
-                </option>
-              ))}
-          </select>
-        </label>
-
+        {activeAgent && (
+          <span className={`text-xs font-semibold pb-2.5 shrink-0 ${theme.mutedText}`}>
+            {t.chatToAgent} {activeAgent.name} :
+          </span>
+        )}
         <textarea
           ref={inputRef}
           value={text}
@@ -126,21 +190,16 @@ const MetaChatDock: React.FC = () => {
           }}
           rows={1}
           placeholder={t.chatPlaceholder}
-          aria-label={t.chatPlaceholder}
+          aria-label={`${t.chatToAgent} ${chatTarget}`}
           className={`flex-1 resize-none bg-transparent text-base leading-relaxed py-2.5 outline-none placeholder:opacity-50 ${theme.primaryText}`}
         />
-
         <button
           onClick={handleSend}
           disabled={isChatLoading || !text.trim()}
           aria-label={t.send}
           className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full transition-all ${theme.userBubble} disabled:opacity-40`}
         >
-          {isChatLoading ? (
-            <Loader2 size={18} className="animate-spin" aria-hidden />
-          ) : (
-            <SendHorizonal size={18} aria-hidden />
-          )}
+          {isChatLoading ? <Loader2 size={18} className="animate-spin" aria-hidden /> : <SendHorizonal size={18} aria-hidden />}
         </button>
       </div>
     </div>
