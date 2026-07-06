@@ -44,7 +44,8 @@ import {
   seedWorkEvents,
 } from '@/core/seed';
 import { agentMethods } from '@/core/agent_methods';
-import { decomposeGoal, runFlowLocally } from '@/core/orchestrator';
+import { runFlowLocally } from '@/core/orchestrator';
+import { designGenesisPlan, type GenesisEvent } from '@/core/genesis';
 import { proposeMetaNodeForScope, proposeMetaNodes } from '@/core/curator';
 import { generateText } from '@/services/llm';
 import { persistProject } from '@/services/firebase';
@@ -126,6 +127,11 @@ interface AppContextType {
   workEvents: WorkEvent[];
   learning: LearningEntry[];
 
+  // GENESIS — the orchestrator creates agents + flow from any request
+  runGenesis: (request: string) => void;
+  genesisEvents: GenesisEvent[];
+  isGenesisRunning: boolean;
+
   // Meta-chat — contextual: talks to the open agent, else the system LLM
   messages: ChatMessage[];
   /** The agent the chat currently addresses (derived from the view). */
@@ -176,6 +182,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [workEvents, setWorkEvents] = useState<WorkEvent[]>(seedWorkEvents);
   const [learning] = useState<LearningEntry[]>(seedLearning);
+  const [genesisEvents, setGenesisEvents] = useState<GenesisEvent[]>([]);
+  const [isGenesisRunning, setIsGenesisRunning] = useState(false);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -471,6 +479,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [isFlowRunning, selectedProjectId, tasks]);
 
+  /* ------------------------------ GENESIS ------------------------------ */
+
+  /**
+   * The generative pipeline of the Orchestrator: from ANY request, create
+   * every missing specialist agent (conform method enforced), group them in
+   * a dedicated folder, contract a task DAG and execute it live. The
+   * timeline events stream onto the home page while it happens.
+   */
+  const runGenesis = useCallback(
+    (request: string) => {
+      if (!selectedProjectId || isGenesisRunning || !request.trim()) return;
+      const plan = designGenesisPlan(request.trim(), selectedProjectId, agents);
+      setIsGenesisRunning(true);
+      setGenesisEvents([]);
+
+      // Publish the new specialists (create_agent primitive — the standard
+      // harness + conform method rule) and scope them to the project.
+      plan.newAgents.forEach((a) => createAgent(a));
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === selectedProjectId
+            ? {
+                ...p,
+                agentIds: [...new Set([...p.agentIds, ...plan.newAgents.map((a) => a.id)])],
+                perimeters: p.perimeters.map((per) =>
+                  per.role === 'owner'
+                    ? { ...per, taskIds: [...per.taskIds, ...plan.tasks.map((task) => task.id)] }
+                    : per
+                ),
+              }
+            : p
+        )
+      );
+      if (plan.newAgents.length > 0) {
+        setFolders((prev) => [
+          ...prev,
+          { id: `folder-genesis-${Date.now()}`, name: plan.folderName, agentIds: plan.newAgents.map((a) => a.id) },
+        ]);
+      }
+
+      // Stream the timeline, then inject the DAG and run it for real.
+      plan.events.forEach((ev, i) => {
+        setTimeout(() => setGenesisEvents((prev) => [...prev, ev]), 450 * i);
+      });
+      setTimeout(() => {
+        setTasks((prev) => [...prev, ...plan.tasks]);
+        setIsFlowRunning(true);
+        cancelFlowRef.current = runFlowLocally(plan.tasks, {
+          onTaskUpdate: (updated) =>
+            setTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task))),
+          onWorkEvent: (event) => setWorkEvents((prev) => [...prev, event]),
+          onDone: () => {
+            setIsFlowRunning(false);
+            setIsGenesisRunning(false);
+            setGenesisEvents((prev) => [
+              ...prev,
+              {
+                id: `g-done-${Date.now()}`,
+                kind: 'done',
+                label: 'Flux terminé',
+                detail: `${plan.tasks.length} tâches livrées, jugées conformes.`,
+              },
+            ]);
+          },
+        });
+      }, 450 * plan.events.length + 300);
+    },
+    [selectedProjectId, isGenesisRunning, agents, createAgent]
+  );
+
   /* ----------------------------- Meta-chat ----------------------------- */
 
   const sendMessage = useCallback(
@@ -490,25 +568,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // — ORCHESTRATEUR: a goal sent while the project's flow is empty
       //   generates the contracted task flow (visible in « Flux »).
       let flowNote = '';
-      if (target.id === 'orchestrator' && selectedProjectId) {
+      if (target.id === 'orchestrator' && selectedProjectId && !isGenesisRunning) {
         const hasTasks = tasks.some((task) => task.projectId === selectedProjectId);
-        if (!hasTasks) {
-          const project = projects.find((p) => p.id === selectedProjectId);
-          const flow = decomposeGoal(selectedProjectId, project?.title ?? '', text);
-          setTasks((prev) => [...prev, ...flow]);
-          setProjects((prev) =>
-            prev.map((p) =>
-              p.id === selectedProjectId
-                ? {
-                    ...p,
-                    perimeters: p.perimeters.map((per) =>
-                      per.role === 'owner' ? { ...per, taskIds: [...per.taskIds, ...flow.map((task) => task.id)] } : per
-                    ),
-                  }
-                : p
-            )
-          );
-          flowNote = `\n\n→ Flux généré : ${flow.length} tâches contractualisées (voir l'onglet Flux).`;
+        // GENESIS fires on any fresh goal, and whenever agent creation is
+        // explicitly requested (« crée un agent… », « crée les agents… »).
+        if (!hasTasks || /cr[ée]{1,2}r?s?\s+(un |des |les |l['’])?agents?/i.test(text)) {
+          runGenesis(text);
+          flowNote =
+            '\n\n→ Génésis lancé : création des agents spécialistes, conception du flux et exécution en direct (voir Accueil et Flux).';
         }
       }
       // — CURATEUR: any message asks it to work; its meta-node proposals
@@ -550,7 +617,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsChatLoading(false);
       }
     },
-    [agents, chatTarget, providers, selectedProjectId, tasks, projects, requestCuratorProposals]
+    [agents, chatTarget, providers, selectedProjectId, tasks, isGenesisRunning, runGenesis, requestCuratorProposals]
   );
 
   /* --------------------------- LLM providers --------------------------- */
@@ -622,6 +689,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isFlowRunning,
     workEvents,
     learning,
+    runGenesis,
+    genesisEvents,
+    isGenesisRunning,
     messages,
     chatTarget,
     sendMessage,

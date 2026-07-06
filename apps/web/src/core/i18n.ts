@@ -8,6 +8,12 @@ import type { Language } from './types';
 type Dict = Record<string, string>;
 
 const FR: Dict = {
+  genesisTitle: 'Que voulez-vous accomplir ?',
+  genesisSubtitle: 'L’orchestrateur crée les agents nécessaires, conçoit le flux de tâches et l’exécute sous vos yeux.',
+  genesisPlaceholder: 'Décrivez votre objectif — aussi ambitieux soit-il…',
+  genesisLaunch: 'Lancer',
+  genesisTimeline: 'Génésis en direct',
+  genesisSeeFlow: 'Voir le flux →',
   fluxEmpty: 'Flux vide : rien n’a encore été demandé. Décrivez votre objectif à l’orchestrateur (via le chat de sa page ou de l’accueil) pour générer le flux d’agents.',
   curatorHint: 'Demandez au Curateur (via le chat ci-dessous) de proposer des dossiers : ses méta-nœuds apparaissent ici, à valider ou refuser.',
   status_pending: 'En attente',
@@ -167,6 +173,12 @@ const FR: Dict = {
 };
 
 const EN: Dict = {
+  genesisTitle: 'What do you want to accomplish?',
+  genesisSubtitle: 'The orchestrator creates the required agents, designs the task flow and runs it before your eyes.',
+  genesisPlaceholder: 'Describe your goal — however ambitious…',
+  genesisLaunch: 'Launch',
+  genesisTimeline: 'Genesis live',
+  genesisSeeFlow: 'See the flow →',
   fluxEmpty: 'Empty flow: nothing has been asked yet. Describe your goal to the orchestrator (via its page chat or home) to generate the agent flow.',
   curatorHint: 'Ask the Curator (via the chat below) to propose folders: its meta-nodes appear here, to accept or reject.',
   status_pending: 'Pending',
@@ -326,6 +338,12 @@ const EN: Dict = {
 };
 
 const ES: Dict = {
+  genesisTitle: '¿Qué quiere lograr?',
+  genesisSubtitle: 'El orquestador crea los agentes necesarios, diseña el flujo de tareas y lo ejecuta ante sus ojos.',
+  genesisPlaceholder: 'Describa su objetivo, por ambicioso que sea…',
+  genesisLaunch: 'Lanzar',
+  genesisTimeline: 'Génesis en vivo',
+  genesisSeeFlow: 'Ver el flujo →',
   fluxEmpty: 'Flujo vacío: aún no se ha pedido nada. Describa su objetivo al orquestador (por el chat) para generar el flujo de agentes.',
   curatorHint: 'Pida al Curador (por el chat de abajo) que proponga carpetas: sus meta-nodos aparecen aquí, para aceptar o rechazar.',
   status_pending: 'Pendiente',

@@ -109,6 +109,27 @@ const FluxView: React.FC = () => {
 
   const selectedTask = visibleTasks.find((task) => task.id === selectedTaskId && task.accessible);
 
+  // DAG ranks (longest path from the roots): tasks sharing a rank run in
+  // PARALLEL and are marked with ∥ instead of a ↓ arrow.
+  const taskRank = new Map<string, number>();
+  visibleTasks.forEach((task) => taskRank.set(task.id, 0));
+  for (let i = 0; i < visibleTasks.length; i++) {
+    let changed = false;
+    for (const task of visibleTasks) {
+      for (const dep of task.dependsOn) {
+        const r = (taskRank.get(dep) ?? 0) + 1;
+        if (r > (taskRank.get(task.id) ?? 0)) {
+          taskRank.set(task.id, r);
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  const rankedTasks = [...visibleTasks].sort(
+    (a, b) => (taskRank.get(a.id) ?? 0) - (taskRank.get(b.id) ?? 0)
+  );
+
   return (
     <section aria-label={t.flux} className="w-full max-w-5xl mx-auto px-4 py-6 animate-fade-up">
       <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
@@ -123,19 +144,29 @@ const FluxView: React.FC = () => {
         </button>
       </div>
 
-      {/* Split view: vertical flow (left) + selected task detail (right) */}
+      {/* Split view: DAG flow (left, parallel tasks side by side) + detail */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
         <ol className="md:col-span-1 flex flex-col items-stretch" aria-label={t.flux}>
-          {visibleTasks.map((task, i) => {
+          {rankedTasks.map((task, i) => {
             const agent = agents.find((a) => a.id === task.agentId);
             const isMeta = !task.accessible;
+            const sameRankAsPrev = i > 0 && taskRank.get(rankedTasks[i - 1].id) === taskRank.get(task.id);
             return (
               <li key={task.id} className="flex flex-col items-stretch">
-                {i > 0 && (
-                  <span className="self-center py-1" aria-hidden>
-                    <ArrowDown size={16} className={theme.mutedText} />
-                  </span>
-                )}
+                {i > 0 &&
+                  (sameRankAsPrev ? (
+                    // Parallel task (same DAG rank): parallel-bars marker.
+                    <span
+                      className={`self-center py-1 text-[10px] font-bold tracking-widest ${theme.mutedText}`}
+                      aria-label="parallèle"
+                    >
+                      ∥
+                    </span>
+                  ) : (
+                    <span className="self-center py-1" aria-hidden>
+                      <ArrowDown size={16} className={theme.mutedText} />
+                    </span>
+                  ))}
                 {isMeta ? (
                   /* META-TASK: structure only, content hidden */
                   <div

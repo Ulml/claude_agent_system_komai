@@ -12,6 +12,7 @@ import React from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { MicroLabel } from '@/components/ui/Glass';
 import { AgentCard, FolderTile } from './AgentTiles';
+import GenesisHero from '@/components/genesis/GenesisHero';
 
 const AgentDesktop: React.FC = () => {
   const { t, visibleAgents, visibleFolders } = useApp();
@@ -24,6 +25,8 @@ const AgentDesktop: React.FC = () => {
 
   return (
     <section aria-label={t.agents} className="w-full max-w-5xl mx-auto px-4 py-6 animate-fade-up">
+      {/* The generative prompt of the Orchestrator (Genesis engine). */}
+      <GenesisHero />
       <MicroLabel className="mb-4">{t.agents}</MicroLabel>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">

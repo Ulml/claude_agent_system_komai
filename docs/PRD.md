@@ -30,6 +30,24 @@ comportant des centaines voire des milliers d'étapes.
 4. Tous ces éléments sont visibles en temps réel dans la vue **Flux** et sur
    la page de chaque agent.
 
+## 3 bis. Le moteur GÉNÉSIS (orchestrateur génératif)
+
+Depuis le prompt central de l'accueil (« Que voulez-vous accomplir ? ») ou en
+parlant à l'orchestrateur, N'IMPORTE QUELLE demande déclenche le pipeline
+génératif (`apps/web/src/core/genesis.ts`) :
+1. **Analyse d'intention** : détection des domaines de connaissance requis
+   (bibliothèque de domaines + repli générique — fonctionne pour toute demande) ;
+2. **Création des agents manquants** : un « Spécialiste {Domaine} » par
+   domaine, instancié sur le harnais standard avec une méthode de calcul
+   CONFORME (graphe I/O + formules expliquées + sources SOTA + cas connus
+   vérifiés) — la règle du créateur d'agents n'est jamais contournée ; les
+   spécialistes déjà publiés sont réutilisés (SSOT) ;
+3. **Conception du flux DAG** : dossiers spécialistes en PARALLÈLE →
+   analyse croisée → synthèse → revue du juge, chaque tâche contractualisée ;
+4. **Exécution en direct** : timeline Génésis sur l'accueil, agents qui se
+   matérialisent dans un dossier « Équipe Génésis », flux suivi en temps réel
+   (marqueur ∥ pour les tâches parallèles).
+
 ## 4. Les agents
 
 - **Structure standard unique** (harnais Hermes, `packages/agent_harness`) ;
