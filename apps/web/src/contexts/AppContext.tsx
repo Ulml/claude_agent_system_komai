@@ -34,6 +34,7 @@ export interface AccessRequest {
 import { defaultTheme } from '@/core/themes';
 import { translations } from '@/core/i18n';
 import {
+  DEFAULT_AGENT_IDS,
   seedAgents,
   seedFolders,
   seedLearning,
@@ -42,6 +43,7 @@ import {
   seedTasks,
   seedWorkEvents,
 } from '@/core/seed';
+import { agentMethods } from '@/core/agent_methods';
 import { decomposeGoal, runFlowLocally } from '@/core/orchestrator';
 import { proposeMetaNodeForScope, proposeMetaNodes } from '@/core/curator';
 import { generateText } from '@/services/llm';
@@ -85,8 +87,12 @@ interface AppContextType {
 
   // Agents & desktop folders (nested via parentId)
   agents: AgentProfile[];
+  /** Agents of the SELECTED PROJECT (the desktop shows only these). */
+  visibleAgents: AgentProfile[];
   createAgent: (profile: AgentProfile) => void;
   folders: AgentFolder[];
+  /** Folders whose members exist in the selected project. */
+  visibleFolders: AgentFolder[];
   openFolderId: string | null;
   setOpenFolderId: (id: string | null) => void;
   createFolder: (name: string, agentIds: string[], parentId?: string) => void;
@@ -241,6 +247,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   }, []);
 
+  /* ----------------- Project-scoped agents & folders ------------------ */
+
+  // The desktop shows only the agents of the selected project (space-tech
+  // simulators exist solely in the « Technologies Spatiales » demo project).
+  const visibleAgents = useMemo(() => {
+    const project = projects.find((p) => p.id === selectedProjectId);
+    if (!project) return agents.filter((a) => DEFAULT_AGENT_IDS.includes(a.id));
+    return agents.filter((a) => project.agentIds.includes(a.id));
+  }, [agents, projects, selectedProjectId]);
+
+  const visibleFolders = useMemo(() => {
+    const visibleIds = new Set(visibleAgents.map((a) => a.id));
+    const kept = folders
+      .map((f) => ({ ...f, agentIds: f.agentIds.filter((id) => visibleIds.has(id)) }))
+      // Keep a folder if it still has agents or visible sub-folders.
+      .filter((f, _, arr) => f.agentIds.length > 0 || arr.some((c) => c.parentId === f.id && c.agentIds.length > 0));
+    return kept;
+  }, [folders, visibleAgents]);
+
   /* --------------------- Back navigation (top-left arrow) -------------- */
 
   const canGoBack = view.kind === 'agent' || openFolderId !== null;
@@ -392,23 +417,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const createProject = useCallback(
     (title: string, description: string) => {
       const id = `proj-${Date.now()}`;
+      // A new project starts with the DEFAULT agents and an EMPTY flow:
+      // nothing has been asked yet. The flow is generated later, when the
+      // user describes a goal to the orchestrator through the chat.
       const project: Project = {
         id,
         title,
         description,
         createdAt: Date.now(),
         isLocked: false,
-        // The creator owns every task of the new flow by default.
         perimeters: [{ memberId: currentUserId, taskIds: [], role: 'owner' }],
+        agentIds: [...DEFAULT_AGENT_IDS],
       };
-      const flow = decomposeGoal(id, title, description);
-      project.perimeters[0].taskIds = flow.map((task) => task.id);
       setProjects((prev) => [project, ...prev]);
-      setTasks((prev) => [...prev, ...flow]);
       setSelectedProjectId(id);
-      setView({ kind: 'tab', tab: 'FLUX' });
-      // Fire-and-forget persistence (Firestore or localStorage fallback).
-      void persistProject(project, flow);
+      // Land on the HOME desktop (not the flow, which is empty by design).
+      setView({ kind: 'tab', tab: 'HOME' });
+      // Fire-and-forget persistence (simulated Firestore: localStorage).
+      void persistProject(project, []);
     },
     [currentUserId]
   );
@@ -459,6 +485,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setMessages((prev) => [...prev, userMsg]);
       setIsChatLoading(true);
+
+      // The chat is the SSOT trigger of agent behaviour:
+      // — ORCHESTRATEUR: a goal sent while the project's flow is empty
+      //   generates the contracted task flow (visible in « Flux »).
+      let flowNote = '';
+      if (target.id === 'orchestrator' && selectedProjectId) {
+        const hasTasks = tasks.some((task) => task.projectId === selectedProjectId);
+        if (!hasTasks) {
+          const project = projects.find((p) => p.id === selectedProjectId);
+          const flow = decomposeGoal(selectedProjectId, project?.title ?? '', text);
+          setTasks((prev) => [...prev, ...flow]);
+          setProjects((prev) =>
+            prev.map((p) =>
+              p.id === selectedProjectId
+                ? {
+                    ...p,
+                    perimeters: p.perimeters.map((per) =>
+                      per.role === 'owner' ? { ...per, taskIds: [...per.taskIds, ...flow.map((task) => task.id)] } : per
+                    ),
+                  }
+                : p
+            )
+          );
+          flowNote = `\n\n→ Flux généré : ${flow.length} tâches contractualisées (voir l'onglet Flux).`;
+        }
+      }
+      // — CURATEUR: any message asks it to work; its meta-node proposals
+      //   land in ITS « Travail en direct » tab (no separate button).
+      if (target.id === 'curator') {
+        requestCuratorProposals();
+      }
+
       try {
         const provider =
           providers.find((p) => p.id === target.llmBinding.providerId) ?? providers[0];
@@ -468,12 +526,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           system: `Tu es « ${target.name} », un agent du système d'exploitation IA Template_LM. ${target.tagline}. Réponds de façon concise et structurée.`,
           prompt: text,
         });
+        // Simulator agents are never fake: in simulated mode their reply
+        // carries the REAL values computed by core/simulators.ts.
+        let replyText = result.text + flowNote;
+        const method = agentMethods[target.id];
+        if (result.simulated && method?.checks?.length) {
+          const computed = method.checks
+            .map((c) => `• ${c.label} = ${c.got.toPrecision(5)}${c.unit && c.unit !== '—' ? ` ${c.unit}` : ''}`)
+            .join('\n');
+          replyText += `\n\nCalculs réels (${target.name}) :\n${computed}`;
+        }
         setMessages((prev) => [
           ...prev,
           {
             id: `m-${Date.now()}-r`,
             role: 'model',
-            text: result.text,
+            text: replyText,
             targetId: target.id,
             timestamp: Date.now(),
           },
@@ -482,7 +550,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsChatLoading(false);
       }
     },
-    [agents, chatTarget, providers]
+    [agents, chatTarget, providers, selectedProjectId, tasks, projects, requestCuratorProposals]
   );
 
   /* --------------------------- LLM providers --------------------------- */
@@ -526,8 +594,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     agentTitleHidden,
     setAgentTitleHidden,
     agents,
+    visibleAgents,
     createAgent,
     folders,
+    visibleFolders,
     openFolderId,
     setOpenFolderId,
     createFolder,

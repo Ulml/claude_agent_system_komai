@@ -270,6 +270,12 @@ export interface Project {
   createdAt: number;
   isLocked: boolean;
   perimeters: Perimeter[];
+  /**
+   * The agents available inside this project. Every new project starts with
+   * the DEFAULT agents (see core/seed.ts DEFAULT_AGENT_IDS); demo projects
+   * may add specialised agents (e.g. the space-tech simulators).
+   */
+  agentIds: string[];
 }
 
 /* ------------------------------------------------------------------ */

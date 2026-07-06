@@ -375,9 +375,10 @@ export const seedFolders: AgentFolder[] = [
     agentIds: ['researcher', 'analyst', 'writer'],
   },
   {
-    id: 'folder-users',
-    name: 'Utilisateurs',
-    agentIds: ['user-owner', 'user-guest'],
+    // « Équipe » groups ALL human users of the OS.
+    id: 'folder-team',
+    name: 'Équipe',
+    agentIds: seedAgents.filter((a) => a.kind === 'human').map((a) => a.id),
   },
   spaceTechFolder,
   propulsionFolder,
@@ -385,123 +386,61 @@ export const seedFolders: AgentFolder[] = [
 ];
 
 /* ------------------------------------------------------------------ */
-/* Demo project with an end-to-end flow (incl. one meta-task)          */
+/* Default agents & the single demo project                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The DEFAULT agents present in every new project: the OS core (LLM,
+ * orchestrateur, curateur, juge, KOMAÏ), the production workers and the
+ * human users. The space-tech simulators are NOT here — they live only in
+ * the demo project below.
+ */
+export const DEFAULT_AGENT_IDS: string[] = [
+  'system-llm',
+  'orchestrator',
+  'curator',
+  'judge',
+  'komai-coding',
+  'researcher',
+  'analyst',
+  'writer',
+  'user-owner',
+  'user-guest',
+];
+
+/**
+ * The ONLY demo project: « Technologies Spatiales ». It carries the default
+ * agents PLUS the space-tech simulators (Propulsion + Protections
+ * Anti-Radiations). Its flow starts EMPTY: nothing has been asked yet — the
+ * user describes a goal to the orchestrator to generate the flow.
+ */
 export const seedProject: Project = {
-  id: 'proj-demo',
-  title: 'Étude marché — batteries sodium',
+  id: 'proj-space',
+  title: 'Technologies Spatiales',
   description:
-    'Produire une étude de marché complète sur les batteries sodium-ion : recherche, analyse chiffrée, rapport final.',
+    'Projet démo : simulateurs de propulsion et de protection anti-radiations, prêts à être orchestrés.',
   createdAt: Date.now() - 86_400_000,
   isLocked: false,
-  perimeters: [
-    { memberId: 'user-owner', taskIds: ['t1', 't2', 't3', 't4'], role: 'owner' },
-    { memberId: 'user-guest', taskIds: ['t3'], role: 'viewer' },
+  perimeters: [{ memberId: 'user-owner', taskIds: [], role: 'owner' }],
+  agentIds: [
+    ...DEFAULT_AGENT_IDS,
+    ...spaceTechAgents.map((a) => a.id),
+    ...radProtectionAgents.map((a) => a.id),
   ],
 };
 
-const conformOk = (judge: string): TaskNode['conformity'] => ({
-  verdict: 'conform',
-  score: 94,
-  criteria: [
-    { name: 'Respect du contrat', passed: true, comment: 'Tous les points de la spécification sont couverts.' },
-    { name: 'Standards du projet', passed: true, comment: 'Format Markdown et sources citées.' },
-    { name: 'Qualité organisationnelle', passed: true, comment: 'Structure claire, transmissible à l’agent suivant.' },
-  ],
-  judgeModel: judge,
-  recommendations: ['Réduire de ~12% les tokens en compactant la phase SENSE.'],
-});
-
-export const seedTasks: TaskNode[] = [
-  {
-    id: 't1',
-    projectId: 'proj-demo',
-    title: 'Recherche documentaire',
-    agentId: 'researcher',
-    status: 'done',
-    dependsOn: [],
-    spec: {
-      objective: 'Constituer un dossier sourcé sur le marché des batteries sodium-ion (2023-2026).',
-      constraints: ['Sources < 18 mois', 'Minimum 12 références', 'Format Markdown'],
-      deliverableFormat: 'dossier_recherche.md',
-    },
-    input: 'Description du projet + standards transversaux (style, citations).',
-    output: {
-      summary: 'Dossier de 14 sources : fabricants, coûts au kWh, feuilles de route CATL/BYD/Northvolt.',
-      artifacts: ['dossier_recherche.md'],
-      tokensUsed: 18_420,
-    },
-    conformity: conformOk('claude-sonnet-5'),
-    accessible: true,
-  },
-  {
-    id: 't2',
-    projectId: 'proj-demo',
-    title: 'Analyse chiffrée',
-    agentId: 'analyst',
-    status: 'running',
-    dependsOn: ['t1'],
-    spec: {
-      objective: 'Quantifier TAM/SAM/SOM et courbes de coût à partir du dossier de recherche.',
-      constraints: ['Hypothèses explicites', 'Tableaux comparatifs', 'Unités SI'],
-      deliverableFormat: 'analyse_marche.md',
-    },
-    input: 'dossier_recherche.md (sortie de t1).',
-    output: null,
-    conformity: { verdict: 'pending', score: 0, criteria: [], judgeModel: 'claude-sonnet-5', recommendations: [] },
-    accessible: true,
-  },
-  {
-    id: 't3',
-    projectId: 'proj-demo',
-    title: 'Rédaction du rapport final',
-    agentId: 'writer',
-    status: 'pending',
-    dependsOn: ['t2'],
-    spec: {
-      objective: 'Rédiger le rapport final de l’étude, prêt à publier.',
-      constraints: ['20 pages max', 'Résumé exécutif en tête', 'FR'],
-      deliverableFormat: 'rapport_final.md',
-    },
-    input: 'analyse_marche.md (sortie de t2).',
-    output: null,
-    conformity: null,
-    accessible: true,
-  },
-  {
-    id: 't4',
-    projectId: 'proj-demo',
-    title: 'Revue stratégique confidentielle',
-    agentId: 'orchestrator',
-    status: 'pending',
-    dependsOn: ['t3'],
-    spec: {
-      objective: 'Revue confidentielle (pricing interne) — accessible au propriétaire uniquement.',
-      constraints: ['Confidentiel'],
-      deliverableFormat: 'revue_confidentielle.md',
-    },
-    input: 'rapport_final.md',
-    output: null,
-    conformity: null,
-    // Rendered as a META-TASK for any member whose perimeter excludes t4.
-    accessible: true,
-  },
-];
+/**
+ * No hard-coded tasks: flows are generated at runtime by the orchestrator
+ * (chat a goal to it) and executed by the real local pipeline.
+ */
+export const seedTasks: TaskNode[] = [];
 
 /* ------------------------------------------------------------------ */
 /* Live work stream & learning entries                                 */
 /* ------------------------------------------------------------------ */
 
-export const seedWorkEvents: WorkEvent[] = [
-  { id: 'w1', agentId: 'researcher', taskId: 't1', phase: 'SENSE', label: 'Lecture de la spécification', detail: 'Contraintes : sources < 18 mois, 12 références minimum.', timestamp: Date.now() - 7_200_000 },
-  { id: 'w2', agentId: 'researcher', taskId: 't1', phase: 'PLAN', label: 'Plan de recherche en 4 axes', detail: 'Fabricants, coûts, brevets, feuilles de route.', timestamp: Date.now() - 7_100_000 },
-  { id: 'w3', agentId: 'researcher', taskId: 't1', phase: 'ACT', label: 'web_search ×14', detail: '14 sources collectées et déduplicables.', timestamp: Date.now() - 6_900_000 },
-  { id: 'w4', agentId: 'researcher', taskId: 't1', phase: 'OBSERVE', label: 'Contrôle de fraîcheur', detail: 'Toutes les sources datent de moins de 18 mois. Boucle terminée.', timestamp: Date.now() - 6_800_000 },
-  { id: 'w5', agentId: 'analyst', taskId: 't2', phase: 'SENSE', label: 'Ingestion du dossier t1', detail: 'Extraction des chiffres de coût au kWh.', timestamp: Date.now() - 600_000 },
-  { id: 'w6', agentId: 'analyst', taskId: 't2', phase: 'PLAN', label: 'Modèle TAM/SAM/SOM', detail: 'Trois scénarios : conservateur, médian, agressif.', timestamp: Date.now() - 300_000 },
-  { id: 'w7', agentId: 'analyst', taskId: 't2', phase: 'ACT', label: 'calculate(cost_curve)', detail: 'Courbe de coût 2024→2030 en cours de calcul…', timestamp: Date.now() - 60_000 },
-];
+/** No hard-coded work events: agents emit them while actually running. */
+export const seedWorkEvents: WorkEvent[] = [];
 
 export const seedLearning: LearningEntry[] = [
   {

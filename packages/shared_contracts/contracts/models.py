@@ -240,6 +240,8 @@ class Project(BaseModel):
     created_at: float = Field(default_factory=time.time)
     is_locked: bool = False
     perimeters: list[Perimeter] = Field(default_factory=list)
+    # Agents available inside this project (defaults + project-specific).
+    agent_ids: list[str] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------

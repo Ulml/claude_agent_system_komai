@@ -8,7 +8,7 @@
  * once the agent runs, the dock auto-switches to Travail en direct.
  */
 import React, { useEffect, useRef } from 'react';
-import { Download } from 'lucide-react';
+import { Check, Download, X } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { MicroLabel, StatusPill } from '@/components/ui/Glass';
 import { Markdown } from '@/components/ui/Markdown';
@@ -101,8 +101,23 @@ const ScoreCurve: React.FC<{ points: { label: string; score: number; trigger: 'l
 /* ------------------------------ page --------------------------------- */
 
 const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
-  const { theme, t, tasks, workEvents, learning, providers, messages, agentTab, logsFilter, setAgentTitleHidden } =
-    useApp();
+  const {
+    theme,
+    t,
+    tasks,
+    workEvents,
+    learning,
+    providers,
+    messages,
+    agentTab,
+    logsFilter,
+    setAgentTitleHidden,
+    visibleAgents,
+    proposals,
+    acceptProposal,
+    rejectProposal,
+    resolveProposalName,
+  } = useApp();
 
   const agentTasks = tasks.filter((task) => task.agentId === agent.id);
   const agentEvents = workEvents.filter((e) => e.agentId === agent.id);
@@ -186,26 +201,78 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
           ))}
 
         {/* 2 — Travail en direct */}
-        {agentTab === 'work' &&
-          (agentEvents.length === 0 ? (
-            <EmptyDef text={t.defWork} />
-          ) : (
-            <ol className="space-y-3" aria-live="polite">
-              {agentEvents.map((e) => (
-                <li key={e.id} className="flex gap-3 items-start">
-                  <span
-                    className={`shrink-0 w-20 text-center px-2 py-0.5 rounded-full text-[10px] font-bold font-mono tracking-wider ${theme.iconBg} ${theme.secondaryText}`}
-                  >
-                    {e.phase}
-                  </span>
-                  <div className="min-w-0">
-                    <p className={`text-sm font-semibold ${theme.primaryText}`}>{e.label}</p>
-                    <p className={`text-xs ${theme.mutedText}`}>{e.detail}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          ))}
+        {agentTab === 'work' && (
+          <div className="space-y-5">
+            {agentEvents.length === 0 && (agent.id !== 'curator' || proposals.length === 0) ? (
+              <EmptyDef text={agent.id === 'curator' ? t.curatorHint : t.defWork} />
+            ) : (
+              <ol className="space-y-3" aria-live="polite">
+                {agentEvents.map((e) => (
+                  <li key={e.id} className="flex gap-3 items-start">
+                    <span
+                      className={`shrink-0 w-20 text-center px-2 py-0.5 rounded-full text-[10px] font-bold font-mono tracking-wider ${theme.iconBg} ${theme.secondaryText}`}
+                    >
+                      {e.phase}
+                    </span>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-semibold ${theme.primaryText}`}>{e.label}</p>
+                      <p className={`text-xs ${theme.mutedText}`}>{e.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            {/* CURATEUR: its meta-node proposals are ITS live work output
+                (SSOT — no separate button anywhere else in the OS). */}
+            {agent.id === 'curator' && proposals.length > 0 && (
+              <div className="space-y-4">
+                <MicroLabel>{t.curatorProposals}</MicroLabel>
+                {proposals.map((p) => {
+                  const members = p.agentIds
+                    .map((id) => visibleAgents.find((a) => a.id === id))
+                    .filter((a): a is NonNullable<typeof a> => Boolean(a));
+                  return (
+                    <div key={p.id} className="space-y-2">
+                      <p className={`text-sm font-bold uppercase tracking-wide ${theme.primaryText}`}>
+                        {resolveProposalName(p)}
+                      </p>
+                      <p className={`text-xs ${theme.mutedText}`}>{t[p.rationaleKey]}</p>
+                      <ul className="flex flex-wrap gap-1.5">
+                        {members.map((m) => {
+                          const MiniIcon = m.icon;
+                          return (
+                            <li
+                              key={m.id}
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${theme.iconBg} ${theme.secondaryText}`}
+                            >
+                              <MiniIcon size={12} strokeWidth={1.5} aria-hidden />
+                              {m.name}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => acceptProposal(p.id)}
+                          className={`flex items-center gap-1.5 px-4 min-h-[40px] rounded-full text-xs font-bold uppercase tracking-wider ${theme.userBubble}`}
+                        >
+                          <Check size={13} aria-hidden /> {t.accept}
+                        </button>
+                        <button
+                          onClick={() => rejectProposal(p.id)}
+                          className={`flex items-center gap-1.5 px-4 min-h-[40px] rounded-full text-xs font-bold uppercase tracking-wider ${theme.secondaryText} ${theme.glassHover}`}
+                        >
+                          <X size={13} aria-hidden /> {t.reject}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 3 — Conformité (latest report + score-evolution curve) */}
         {agentTab === 'conformity' && (

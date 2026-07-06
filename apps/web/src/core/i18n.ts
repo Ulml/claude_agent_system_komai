@@ -8,6 +8,8 @@ import type { Language } from './types';
 type Dict = Record<string, string>;
 
 const FR: Dict = {
+  fluxEmpty: 'Flux vide : rien n’a encore été demandé. Décrivez votre objectif à l’orchestrateur (via le chat de sa page ou de l’accueil) pour générer le flux d’agents.',
+  curatorHint: 'Demandez au Curateur (via le chat ci-dessous) de proposer des dossiers : ses méta-nœuds apparaissent ici, à valider ou refuser.',
   status_pending: 'En attente',
   status_running: 'En cours',
   status_done: 'Terminé',
@@ -70,7 +72,7 @@ const FR: Dict = {
   logicActivity: 'Logique : activité sur le même projet',
   logicCustom: 'Logique : méta-nœud sur le périmètre désigné',
   groupWorkers: 'Pôle Métier',
-  groupHumans: 'Utilisateurs',
+  groupHumans: 'Équipe',
   groupGovernance: 'Gouvernance',
   groupCoding: 'Ingénierie',
   groupProvider: 'Écosystème',
@@ -165,6 +167,8 @@ const FR: Dict = {
 };
 
 const EN: Dict = {
+  fluxEmpty: 'Empty flow: nothing has been asked yet. Describe your goal to the orchestrator (via its page chat or home) to generate the agent flow.',
+  curatorHint: 'Ask the Curator (via the chat below) to propose folders: its meta-nodes appear here, to accept or reject.',
   status_pending: 'Pending',
   status_running: 'Running',
   status_done: 'Done',
@@ -227,7 +231,7 @@ const EN: Dict = {
   logicActivity: 'Logic: activity on the same project',
   logicCustom: 'Logic: meta-node over the designated scope',
   groupWorkers: 'Business Unit',
-  groupHumans: 'Users',
+  groupHumans: 'Team',
   groupGovernance: 'Governance',
   groupCoding: 'Engineering',
   groupProvider: 'Ecosystem',
@@ -322,6 +326,8 @@ const EN: Dict = {
 };
 
 const ES: Dict = {
+  fluxEmpty: 'Flujo vacío: aún no se ha pedido nada. Describa su objetivo al orquestador (por el chat) para generar el flujo de agentes.',
+  curatorHint: 'Pida al Curador (por el chat de abajo) que proponga carpetas: sus meta-nodos aparecen aquí, para aceptar o rechazar.',
   status_pending: 'Pendiente',
   status_running: 'En curso',
   status_done: 'Hecho',
@@ -384,7 +390,7 @@ const ES: Dict = {
   logicActivity: 'Lógica: actividad en el mismo proyecto',
   logicCustom: 'Lógica: meta-nodo sobre el grupo designado',
   groupWorkers: 'Polo de Negocio',
-  groupHumans: 'Usuarios',
+  groupHumans: 'Equipo',
   groupGovernance: 'Gobernanza',
   groupCoding: 'Ingeniería',
   groupProvider: 'Ecosistema',

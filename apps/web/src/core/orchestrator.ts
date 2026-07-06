@@ -10,6 +10,7 @@
  * Truth on the data contract, two interchangeable executors.
  */
 import type { ConformityReport, TaskNode, TaskOutput, WorkEvent, WorkPhase } from './types';
+import { agentMethods } from './agent_methods';
 
 let uid = 0;
 const nextId = (prefix: string) => `${prefix}-${Date.now()}-${uid++}`;
@@ -106,8 +107,17 @@ export function runFlowLocally(tasks: TaskNode[], cb: FlowRunnerCallbacks): () =
       }, 700);
     }
     schedule(() => {
+      // REAL results, never hard-coded: the assigned agent's computation
+      // method runs its actual physics/algorithm checks (core/simulators.ts)
+      // and the computed values are embedded in the delivered output.
+      const method = agentMethods[task.agentId];
+      const computed = (method?.checks ?? [])
+        .map((c) => `${c.label} = ${c.got.toPrecision(5)}${c.unit && c.unit !== '—' ? ` ${c.unit}` : ''}`)
+        .join(' · ');
       const output: TaskOutput = {
-        summary: `${task.spec.deliverableFormat} produit : ${task.spec.objective}`,
+        summary:
+          `${task.spec.deliverableFormat} produit : ${task.spec.objective}` +
+          (computed ? ` — Calculs vérifiés : ${computed}` : ''),
         artifacts: [task.spec.deliverableFormat],
         tokensUsed: 4_000 + Math.floor(Math.random() * 9_000),
       };

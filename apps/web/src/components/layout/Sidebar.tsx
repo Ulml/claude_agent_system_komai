@@ -22,6 +22,12 @@ const Sidebar: React.FC = () => {
   } = useApp();
   const [pinnedOpen, setPinnedOpen] = useState(false);
 
+  /** Collapse the drawer: unpin AND drop focus so :focus-within releases. */
+  const collapse = () => {
+    setPinnedOpen(false);
+    (document.activeElement as HTMLElement | null)?.blur();
+  };
+
   const selectProject = (id: string, isLocked: boolean) => {
     if (isLocked) {
       // Simple access-code gate (biometric simulation from the prototype).
@@ -29,7 +35,9 @@ const Sidebar: React.FC = () => {
       if (!code) return;
     }
     setSelectedProjectId(id);
-    setView({ kind: 'tab', tab: 'FLUX' });
+    // A selected project lands on its HOME desktop; the drawer retracts.
+    setView({ kind: 'tab', tab: 'HOME' });
+    collapse();
   };
 
   return (
@@ -53,7 +61,10 @@ const Sidebar: React.FC = () => {
         <div className="flex items-center justify-between">
           <MicroLabel>{t.projects}</MicroLabel>
           <button
-            onClick={() => setIsProjectModalOpen(true)}
+            onClick={() => {
+              setIsProjectModalOpen(true);
+              collapse();
+            }}
             aria-label={t.newProject}
             className={`p-1.5 rounded-full ${theme.glassHover} ${theme.primaryText}`}
           >

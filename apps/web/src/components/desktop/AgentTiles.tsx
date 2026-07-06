@@ -64,7 +64,7 @@ export const AgentCard: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
  * a "+n" chip counting the remainder.
  */
 export const FolderTile: React.FC<{ folder: AgentFolder }> = ({ folder }) => {
-  const { theme, t, agents, folders, setOpenFolderId } = useApp();
+  const { theme, t, visibleAgents: agents, visibleFolders: folders, setOpenFolderId } = useApp();
 
   // Effective members include agents of nested sub-folders.
   const collectAgentIds = (f: AgentFolder): string[] => [

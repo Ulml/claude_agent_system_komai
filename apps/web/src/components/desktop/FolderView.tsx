@@ -12,7 +12,7 @@ import { AgentCard, FolderTile } from './AgentTiles';
 import type { AgentProfile } from '@/core/types';
 
 const FolderView: React.FC = () => {
-  const { theme, t, agents, folders, openFolderId, deleteFolder } = useApp();
+  const { theme, t, visibleAgents: agents, visibleFolders: folders, openFolderId, deleteFolder } = useApp();
   const folder = folders.find((f) => f.id === openFolderId);
   if (!folder) return null;
 

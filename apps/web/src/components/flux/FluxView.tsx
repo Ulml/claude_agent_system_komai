@@ -97,6 +97,16 @@ const FluxView: React.FC = () => {
     return <p className={`text-center py-16 text-sm ${theme.mutedText}`}>{t.createProjectFirst}</p>;
   }
 
+  // An empty flow is the normal state of a fresh project: nothing has been
+  // asked yet. The flow appears once a goal is described to the orchestrator.
+  if (visibleTasks.length === 0) {
+    return (
+      <p className={`text-center py-16 px-6 text-sm max-w-xl mx-auto leading-relaxed ${theme.mutedText}`}>
+        {t.fluxEmpty}
+      </p>
+    );
+  }
+
   const selectedTask = visibleTasks.find((task) => task.id === selectedTaskId && task.accessible);
 
   return (

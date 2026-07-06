@@ -8,7 +8,8 @@
 | Contrats du domaine (Python) | `packages/shared_contracts/contracts/models.py` | harnais, orchestrateur, backend |
 | Thèmes (7 préréglages) | `apps/web/src/core/themes.ts` | tout le rendu (via AppContext) |
 | Chaînes UI FR/EN/ES | `apps/web/src/core/i18n.ts` | tout texte visible |
-| Contenu initial (agents, projet démo) | `apps/web/src/core/seed.ts` | bureau, flux, pages agent |
+| Contenu initial (agents, projet démo) | `apps/web/src/core/seed.ts` (`DEFAULT_AGENT_IDS`, projet démo « Technologies Spatiales ») | bureau, flux, pages agent |
+| Calculs physiques réels | `apps/web/src/core/simulators.ts` + `agent_methods.ts` | sorties de tâches, réponses de chat simulées, tests |
 | État global runtime | `apps/web/src/contexts/AppContext.tsx` | toutes les vues |
 | Look glassmorphique | `apps/web/src/components/ui/Glass.tsx` | tous les conteneurs/labels/pills |
 | Appel LLM | `apps/web/src/services/llm.ts` (front) / `main.py::build_llm` (Python) | chat, agents |
