@@ -63,9 +63,13 @@ export interface SystemModel {
   iteration: number;
 }
 
-/** Requests that describe a physical system (routes genesis → MBSE). */
+/**
+ * Requests the orchestrator recognises as a DESIGN / CONCEPTION of a
+ * physical system (routes genesis → MBSE, « Flux fonctionnel » tab).
+ * Work-flow requests that don't match keep the PERT pipeline (« Flux »).
+ */
 export const MBSE_TRIGGER =
-  /briqu|maison|habitat|mur|b[aâ]timent|construction|composant|syst[eè]me physique|structure|pont|moteur|v[ée]hicule|terre crue/i;
+  /briqu|maison|habitat|mur|b[aâ]timent|construction|composant|syst[eè]me physique|structure|pont|moteur|v[ée]hicule|terre crue|conception|con[cç]evoir|design d|designer un|architecture (d'un|d’un|de) /i;
 
 /* ------------------------------------------------------------------ */
 /* Function library — real physics per function                        */

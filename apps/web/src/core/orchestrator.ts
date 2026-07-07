@@ -70,6 +70,43 @@ export function decomposeGoal(projectId: string, title: string, goal: string): T
   return [...research, t3, t4, t5];
 }
 
+/**
+ * Details ONE agent into a SUB-FLOW (the agent becomes a META-AGENT).
+ * The mission is decomposed generically — framing → two parallel production
+ * stages → conformity gate — each sub-task carrying `parentAgentId` so it
+ * renders only inside the meta-agent (its « Flux » tab, and the rounded
+ * outline expanded from the main PERT), never in the main project flow.
+ */
+export function decomposeAgentSubFlow(
+  projectId: string,
+  agent: { id: string; name: string; tagline: string }
+): TaskNode[] {
+  const mk = (title: string, agentId: string, objective: string, deliverable: string, dependsOn: string[]): TaskNode => ({
+    id: nextId(`${projectId}-sf`),
+    projectId,
+    title,
+    agentId,
+    status: 'pending',
+    dependsOn,
+    spec: {
+      objective,
+      constraints: ['Standards transversaux du projet', 'Sortie structurée (Pydantic)'],
+      deliverableFormat: deliverable,
+    },
+    input: dependsOn.length === 0 ? `Mission de ${agent.name} : ${agent.tagline}` : 'Sorties des étapes précédentes',
+    output: null,
+    conformity: null,
+    accessible: true,
+    parentAgentId: agent.id,
+  });
+
+  const s1 = mk(`Cadrage — ${agent.name}`, 'researcher', `Cadrer la mission : ${agent.tagline}`, 'cadrage.md', []);
+  const s2 = mk('Production — analyse', 'analyst', 'Produire la part analytique de la mission.', 'analyse.md', [s1.id]);
+  const s3 = mk('Production — rédaction', 'writer', 'Produire la part rédactionnelle de la mission.', 'redaction.md', [s1.id]);
+  const s4 = mk('Contrôle de conformité', 'judge', 'Vérifier la sortie du méta-agent avant remontée au flux principal.', 'controle.md', [s2.id, s3.id]);
+  return [s1, s2, s3, s4];
+}
+
 /** Phases emitted, in order, while a task "runs" locally. */
 const PHASES: { phase: WorkPhase; label: string; detail: string }[] = [
   { phase: 'SENSE', label: 'Analyse du contrat', detail: 'Lecture de la TaskSpecification et des entrées.' },

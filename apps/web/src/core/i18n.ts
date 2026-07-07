@@ -8,7 +8,7 @@ import type { Language } from './types';
 type Dict = Record<string, string>;
 
 const FR: Dict = {
-  system: 'Système',
+  system: 'Flux fonctionnel',
   systemEmpty: 'Aucun système conçu : décrivez un objet physique (ex. « une maison en briques de terre crue ») dans le méta-chat, à l’orchestrateur ou au LLM général.',
   systemIteration: 'Itération',
   systemRefineHint: 'dites « raffine » à l’orchestrateur pour détailler',
@@ -28,6 +28,12 @@ const FR: Dict = {
   status_failed: 'Échec',
   tabChat: 'Chat',
   defChat: 'La conversation avec cet agent. Écrivez-lui via la fenêtre de chat ci-dessous : c’est ainsi que se déclenchent ses actions.',
+  tabFlow: 'Flux',
+  defFlow: 'Le sous-flux qui détaille ce méta-agent : appuyez sur « + » à droite de la barre d’onglets pour décomposer sa mission.',
+  subFlowOf: 'Sous-flux de',
+  metaAgent: 'méta-agent',
+  detailSubFlow: 'Détailler en sous-flux (méta-agent)',
+  pertHint: 'Graphe PERT de gauche à droite — les branches empilées sont parallèles. Clic : détail de la tâche · double-clic sur un méta-agent (▣) : son sous-flux s’affiche dans un cadre arrondi.',
   tabSkills: 'Compétences',
   tabLogs: 'Logs',
   defInputs: 'Ce que vous devez fournir pour que l’agent commence à travailler : sa spécification de tâche (contrat) et ses données d’entrée.',
@@ -181,7 +187,7 @@ const FR: Dict = {
 };
 
 const EN: Dict = {
-  system: 'System',
+  system: 'Functional flow',
   systemEmpty: 'No system designed yet: describe a physical object (e.g. “a raw-earth brick house”) in the meta-chat, to the orchestrator or the general LLM.',
   systemIteration: 'Iteration',
   systemRefineHint: 'say “refine” to the orchestrator to add detail',
@@ -201,6 +207,12 @@ const EN: Dict = {
   status_failed: 'Failed',
   tabChat: 'Chat',
   defChat: 'The conversation with this agent. Write to it through the chat window below: that is how its actions are triggered.',
+  tabFlow: 'Flow',
+  defFlow: 'The sub-flow detailing this meta-agent: press “+” at the right of the tab bar to decompose its mission.',
+  subFlowOf: 'Sub-flow of',
+  metaAgent: 'meta-agent',
+  detailSubFlow: 'Detail into a sub-flow (meta-agent)',
+  pertHint: 'Left-to-right PERT graph — stacked branches run in parallel. Click: task detail · double-click a meta-agent (▣): its sub-flow appears inside a rounded outline.',
   tabSkills: 'Skills',
   tabLogs: 'Logs',
   defInputs: 'What you must provide for the agent to start working: its task specification (contract) and input data.',
@@ -354,7 +366,7 @@ const EN: Dict = {
 };
 
 const ES: Dict = {
-  system: 'Sistema',
+  system: 'Flujo funcional',
   systemEmpty: 'Ningún sistema diseñado: describa un objeto físico (ej. «una casa de adobe») en el meta-chat, al orquestador o al LLM general.',
   systemIteration: 'Iteración',
   systemRefineHint: 'diga «refina» al orquestador para detallar',
@@ -374,6 +386,12 @@ const ES: Dict = {
   status_failed: 'Fallo',
   tabChat: 'Chat',
   defChat: 'La conversación con este agente. Escríbale por la ventana de chat de abajo: así se activan sus acciones.',
+  tabFlow: 'Flujo',
+  defFlow: 'El subflujo que detalla este meta-agente: pulse «+» a la derecha de la barra de pestañas para descomponer su misión.',
+  subFlowOf: 'Subflujo de',
+  metaAgent: 'meta-agente',
+  detailSubFlow: 'Detallar en un subflujo (meta-agente)',
+  pertHint: 'Grafo PERT de izquierda a derecha — las ramas apiladas son paralelas. Clic: detalle de la tarea · doble clic en un meta-agente (▣): su subflujo aparece en un marco redondeado.',
   tabSkills: 'Competencias',
   tabLogs: 'Registros',
   defInputs: 'Lo que debe proporcionar para que el agente empiece a trabajar: su especificación de tarea (contrato) y datos de entrada.',

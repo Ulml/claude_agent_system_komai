@@ -256,6 +256,13 @@ export interface TaskNode {
    * functional flow of the object (thermal / mechanical / humidity…).
    */
   realizes?: string[];
+  /**
+   * Present on SUB-FLOW tasks only: the id of the META-AGENT this task
+   * details. Sub-flow tasks never appear in the main project flow — they
+   * render in the meta-agent's « Flux » tab and inside the rounded outline
+   * shown when double-clicking the meta-agent's node in the main PERT.
+   */
+  parentAgentId?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -397,8 +404,9 @@ export type View =
   | { kind: 'tab'; tab: MainTab }
   | { kind: 'agent'; agentId: string };
 
-/** The contextual tabs of an agent page, in display order (Chat first). */
-export type AgentTabId = 'chat' | 'inputs' | 'work' | 'conformity' | 'learning' | 'skills' | 'logs' | 'readme';
+/** The contextual tabs of an agent page, in display order (Chat first).
+ *  'flow' only exists on META-AGENTS: agents detailed into a sub-flow. */
+export type AgentTabId = 'chat' | 'flow' | 'inputs' | 'work' | 'conformity' | 'learning' | 'skills' | 'logs' | 'readme';
 
 /** One point of an agent's end-of-run conformity score history. */
 export interface ConformityPoint {

@@ -44,7 +44,7 @@ import {
   seedWorkEvents,
 } from '@/core/seed';
 import { agentMethods } from '@/core/agent_methods';
-import { runFlowLocally } from '@/core/orchestrator';
+import { decomposeAgentSubFlow, runFlowLocally } from '@/core/orchestrator';
 import { designGenesisPlan, type GenesisEvent } from '@/core/genesis';
 import { designSystemModel, refineSystemModel, MBSE_TRIGGER } from '@/core/mbse';
 import type { FunctionalFlow, SystemComponent } from '@/core/types';
@@ -124,6 +124,11 @@ interface AppContextType {
   visibleTasks: TaskNode[]; // perimeter-filtered: hidden tasks become meta-tasks
   runProjectFlow: () => void;
   isFlowRunning: boolean;
+
+  // META-AGENTS — an agent detailed into a SUB-FLOW (its « Flux » tab)
+  isMetaAgent: (agentId: string) => boolean;
+  /** Details the agent into a sub-flow; false when impossible/already meta. */
+  createSubFlow: (agentId: string) => boolean;
 
   // Live work & learning
   workEvents: WorkEvent[];
@@ -493,13 +498,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [isFlowRunning, selectedProjectId, tasks]);
 
+  /* --------------------- Meta-agents (sub-flows) ----------------------- */
+
+  /** An agent is a META-AGENT once a sub-flow details it. */
+  const isMetaAgent = useCallback(
+    (agentId: string) => tasks.some((task) => task.parentAgentId === agentId),
+    [tasks]
+  );
+
+  /**
+   * Details an agent into a SUB-FLOW (the « + » button of its tab bar).
+   * The sub-tasks carry `parentAgentId` so they render only inside the
+   * meta-agent (its « Flux » tab and the expanded outline in the main
+   * PERT), and they run for real immediately — no fake placeholders.
+   */
+  const createSubFlow = useCallback(
+    (agentId: string): boolean => {
+      if (!selectedProjectId) return false;
+      if (tasks.some((task) => task.parentAgentId === agentId)) return false; // already meta
+      const agent = agents.find((a) => a.id === agentId);
+      if (!agent || agent.kind === 'human') return false;
+      const sub = decomposeAgentSubFlow(selectedProjectId, agent);
+      setTasks((prev) => [...prev, ...sub]);
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === selectedProjectId
+            ? {
+                ...p,
+                perimeters: p.perimeters.map((per) =>
+                  per.role === 'owner' ? { ...per, taskIds: [...per.taskIds, ...sub.map((s) => s.id)] } : per
+                ),
+              }
+            : p
+        )
+      );
+      runFlowLocally(sub, {
+        onTaskUpdate: (updated) => setTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task))),
+        onWorkEvent: (event) => setWorkEvents((prev) => [...prev, event]),
+        onDone: () => {},
+      });
+      return true;
+    },
+    [selectedProjectId, tasks, agents]
+  );
+
   /* ------------------------------ GENESIS ------------------------------ */
 
   /**
    * The generative pipeline of the Orchestrator: from ANY request, create
    * every missing specialist agent (conform method enforced), group them in
    * a dedicated folder, contract a task DAG and execute it live. The
-   * timeline events stream onto the home page while it happens.
+   * timeline events stream in the Orchestrateur's « Travail en direct » tab.
    */
   /** Shared tail of both pipelines: stream events, inject tasks, run flow. */
   const streamAndRun = useCallback(
@@ -720,7 +769,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (/raffin|d[ée]taill|it[éè]r/i.test(text) && systemIteration > 0) {
           // Planned refinement of the MBSE diagram (next iteration).
           flowNote = refineSystem()
-            ? '\n\n→ Itération suivante du diagramme lancée (voir l’onglet Système).'
+            ? '\n\n→ Itération suivante du diagramme lancée (voir l’onglet Flux fonctionnel).'
             : '\n\n→ Impossible pour l’instant : le flux en cours doit se terminer (ou le diagramme est déjà au niveau de détail maximal).';
         } else if (!projectHasTasks || /cr[ée]{1,2}r?s?\s+(un |des |les |l['’])?agents?/i.test(text)) {
           runGenesis(text);
@@ -839,6 +888,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     visibleTasks,
     runProjectFlow,
     isFlowRunning,
+    isMetaAgent,
+    createSubFlow,
     workEvents,
     learning,
     runGenesis,

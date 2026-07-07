@@ -1,19 +1,19 @@
 /**
- * FluxView — the end-to-end agent flow of the selected project.
- *
- * Vertical, top-down DAG (design rule inherited from KOMAÏ Coding): each node
- * is a contracted task assigned to an agent. Selecting a node opens the
- * split detail panel showing its TaskSpecification (contract), input, output
- * and ConformityReport in real time.
+ * FluxView — the end-to-end agent flow of the selected project, rendered as
+ * a PERT graph: left → right, one node per contracted task, parallel
+ * branches stacked vertically. Clicking a node opens the detail panel
+ * (contract, input, output, conformity). Double-clicking the node of a
+ * META-AGENT expands its sub-flow in place, inside a rounded outline.
  *
  * PERIMETERS: tasks outside the current user's perimeter are rendered as
  * META-TASKS — anonymous structural placeholders that reveal only the shape
  * of the project before/after/between the tasks the user owns.
  */
 import React, { useState } from 'react';
-import { ArrowDown, EyeOff, Play, Loader2 } from 'lucide-react';
+import { Play, Loader2 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { Panel, MicroLabel, StatusPill, CodeBlock } from '@/components/ui/Glass';
+import PertGraph from './PertGraph';
 import type { TaskNode } from '@/core/types';
 
 const TaskDetail: React.FC<{ task: TaskNode }> = ({ task }) => {
@@ -107,16 +107,22 @@ const TaskDetail: React.FC<{ task: TaskNode }> = ({ task }) => {
 };
 
 const FluxView: React.FC = () => {
-  const { theme, t, visibleTasks, agents, selectedProjectId, runProjectFlow, isFlowRunning } = useApp();
+  const { theme, t, visibleTasks, tasks, selectedProjectId, runProjectFlow, isFlowRunning } = useApp();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   if (!selectedProjectId) {
     return <p className={`text-center py-16 text-sm ${theme.mutedText}`}>{t.createProjectFirst}</p>;
   }
 
+  // The MAIN flow never contains sub-flow tasks: those live inside their
+  // meta-agent (its « Flux » tab / the expanded outline in this PERT).
+  const rootTasks = visibleTasks.filter((task) => !task.parentAgentId);
+  const subFlowOf = (agentId: string) => tasks.filter((task) => task.parentAgentId === agentId);
+
   // An empty flow is the normal state of a fresh project: nothing has been
   // asked yet. The flow appears once a goal is described to the orchestrator.
-  if (visibleTasks.length === 0) {
+  if (rootTasks.length === 0) {
     return (
       <p className={`text-center py-16 px-6 text-sm max-w-xl mx-auto leading-relaxed ${theme.mutedText}`}>
         {t.fluxEmpty}
@@ -126,31 +132,10 @@ const FluxView: React.FC = () => {
 
   const selectedTask = visibleTasks.find((task) => task.id === selectedTaskId && task.accessible);
 
-  // DAG ranks (longest path from the roots): tasks sharing a rank run in
-  // PARALLEL and are marked with ∥ instead of a ↓ arrow.
-  const taskRank = new Map<string, number>();
-  visibleTasks.forEach((task) => taskRank.set(task.id, 0));
-  for (let i = 0; i < visibleTasks.length; i++) {
-    let changed = false;
-    for (const task of visibleTasks) {
-      for (const dep of task.dependsOn) {
-        const r = (taskRank.get(dep) ?? 0) + 1;
-        if (r > (taskRank.get(task.id) ?? 0)) {
-          taskRank.set(task.id, r);
-          changed = true;
-        }
-      }
-    }
-    if (!changed) break;
-  }
-  const rankedTasks = [...visibleTasks].sort(
-    (a, b) => (taskRank.get(a.id) ?? 0) - (taskRank.get(b.id) ?? 0)
-  );
-
   return (
-    <section aria-label={t.flux} className="w-full max-w-5xl mx-auto px-4 py-6 animate-fade-up">
-      <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
-        <MicroLabel>{t.flux}</MicroLabel>
+    <section aria-label={t.flux} className="w-full max-w-6xl mx-auto px-4 py-6 animate-fade-up">
+      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <MicroLabel>{t.flux} — PERT</MicroLabel>
         <button
           onClick={runProjectFlow}
           disabled={isFlowRunning}
@@ -160,69 +145,32 @@ const FluxView: React.FC = () => {
           {isFlowRunning ? t.flowRunning : t.runFlow}
         </button>
       </div>
+      <p className={`text-xs mb-4 ${theme.mutedText}`}>{t.pertHint}</p>
 
-      {/* Split view: DAG flow (left, parallel tasks side by side) + detail */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
-        <ol className="md:col-span-1 flex flex-col items-stretch" aria-label={t.flux}>
-          {rankedTasks.map((task, i) => {
-            const agent = agents.find((a) => a.id === task.agentId);
-            const isMeta = !task.accessible;
-            const sameRankAsPrev = i > 0 && taskRank.get(rankedTasks[i - 1].id) === taskRank.get(task.id);
-            return (
-              <li key={task.id} className="flex flex-col items-stretch">
-                {i > 0 &&
-                  (sameRankAsPrev ? (
-                    // Parallel task (same DAG rank): parallel-bars marker.
-                    <span
-                      className={`self-center py-1 text-[10px] font-bold tracking-widest ${theme.mutedText}`}
-                      aria-label="parallèle"
-                    >
-                      ∥
-                    </span>
-                  ) : (
-                    <span className="self-center py-1" aria-hidden>
-                      <ArrowDown size={16} className={theme.mutedText} />
-                    </span>
-                  ))}
-                {isMeta ? (
-                  /* META-TASK: structure only, content hidden */
-                  <div
-                    className={`rounded-2xl border border-dashed ${theme.glassBorder} p-4 flex items-center gap-3 opacity-70`}
-                    aria-label={`${t.metaTask}: ${t.noAccessTask}`}
-                  >
-                    <EyeOff size={16} className={theme.mutedText} aria-hidden />
-                    <div>
-                      <p className={`text-sm font-bold uppercase tracking-wide ${theme.mutedText}`}>{t.metaTask}</p>
-                      <p className={`text-xs ${theme.mutedText}`}>{t.metaTaskHint}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <Panel className={`${theme.glassHover} ${selectedTaskId === task.id ? 'ring-2 ring-blue-500/60' : ''}`}>
-                    <button
-                      onClick={() => setSelectedTaskId(task.id)}
-                      aria-pressed={selectedTaskId === task.id}
-                      className="w-full p-4 text-left space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`text-sm font-semibold truncate ${theme.primaryText}`}>{task.title}</span>
-                        <StatusPill status={task.status} />
-                      </div>
-                      <p className={`text-xs ${theme.mutedText}`}>{agent?.name}</p>
-                    </button>
-                  </Panel>
-                )}
-              </li>
-            );
-          })}
-        </ol>
+      {/* The PERT graph (left → right, parallel branches stacked) */}
+      <PertGraph
+        tasks={rootTasks}
+        selectedId={selectedTaskId}
+        onSelect={setSelectedTaskId}
+        onToggleExpand={(taskId) =>
+          setExpandedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(taskId)) next.delete(taskId);
+            else next.add(taskId);
+            return next;
+          })
+        }
+        expandedIds={expandedIds}
+        subFlowOf={subFlowOf}
+      />
 
-        <div className="md:col-span-2 md:sticky md:top-20">
-          {selectedTask ? (
-            <TaskDetail task={selectedTask} />
-          ) : (
-            <p className={`text-sm py-10 text-center ${theme.mutedText}`}>{t.selectTask}</p>
-          )}
-        </div>
+      {/* Selected task detail below the graph */}
+      <div className="mt-6 max-w-3xl">
+        {selectedTask ? (
+          <TaskDetail task={selectedTask} />
+        ) : (
+          <p className={`text-sm py-6 text-center ${theme.mutedText}`}>{t.selectTask}</p>
+        )}
       </div>
     </section>
   );

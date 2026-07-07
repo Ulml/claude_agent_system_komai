@@ -44,6 +44,13 @@ comportant des centaines voire des milliers d'étapes.
    (`ConformityReport`) par tâche.
 4. Tous ces éléments sont visibles en temps réel dans la vue **Flux** et sur
    la page de chaque agent.
+5. **Vue Flux = graphe PERT** : pour un flux de travail, l'orchestrateur le
+   reconnaît et l'affiche en graphe linéaire de gauche à droite de type
+   PERT (`components/flux/PertGraph.tsx`) ; les branches empilées
+   verticalement sont **parallèles**. Clic sur un nœud → détail de la
+   tâche ; double-clic sur le nœud d'un **méta-agent** → son sous-flux
+   s'affiche en place, entouré d'un rectangle aux coins arrondis sans
+   remplissage qui matérialise le méta-agent.
 
 ## 3 bis. Le moteur GÉNÉSIS (orchestrateur génératif)
 
@@ -68,8 +75,11 @@ supplémentaire —, N'IMPORTE QUELLE demande déclenche le pipeline génératif
 
 ## 3 ter. Le modèle SYSTÈME (MBSE, orchestrateur génératif)
 
-Pour toute demande décrivant un objet physique, l'orchestrateur produit un
-**diagramme de bloc MBSE** (`apps/web/src/core/mbse.ts`, onglet « Système ») :
+L'orchestrateur **reconnaît la nature de la demande** : un **flux de
+travail** est affiché en graphe **PERT** dans l'onglet « Flux » (§3.5) ;
+un **design / une conception** d'objet physique produit un **diagramme de
+bloc MBSE** (`apps/web/src/core/mbse.ts`, détection `MBSE_TRIGGER`),
+affiché dans l'onglet dédié « **Flux fonctionnel** » :
 
 - **Méta-composant = composant physique** (mécanique, électronique,
   matériau…), rendu comme un dossier d'agents sur le bureau. Exemple de
@@ -101,11 +111,19 @@ Pour toute demande décrivant un objet physique, l'orchestrateur produit un
   quelconque (API cloud ou local — Ollama/LMLite).
 - **Page web dédiée par agent**, onglets dans l'ordre (Chat en premier) :
   1. *Chat* — la conversation avec CET agent (onglet par défaut) ;
-  2. *Entrées* — inputs et contrats reçus ;
-  3. *Travail en direct* — le flux SENSE/PLAN/ACT/OBSERVE en dynamique ;
-  4. *Conformité* — les rapports du juge sur ses sorties ;
-  5. *Apprentissage* — les 4 modes et les mises à jour de skills appliquées ;
-  6. *Compétences*, *Logs*, *Présentation* (README + algorithme + méthode).
+  2. *Flux* — méta-agents uniquement : le sous-flux qui détaille l'agent ;
+  3. *Entrées* — inputs et contrats reçus ;
+  4. *Travail en direct* — le flux SENSE/PLAN/ACT/OBSERVE en dynamique ;
+  5. *Conformité* — les rapports du juge sur ses sorties ;
+  6. *Apprentissage* — les 4 modes et les mises à jour de skills appliquées ;
+  7. *Compétences*, *Logs*, *Présentation* (README + algorithme + méthode).
+- **Méta-agents (sous-flux)** : tout agent non humain peut être **détaillé
+  en un sous-flux** via le bouton rond « + » à droite de sa barre
+  d'onglets — il devient alors un **méta-agent** (badge ▣ sur sa carte et
+  ses nœuds). Le sous-flux (cadrage → productions parallèles → contrôle du
+  juge, `parentAgentId` sur chaque sous-tâche) vit dans l'onglet *Flux* de
+  l'agent et dans le cadre arrondi déplié par double-clic depuis le PERT
+  principal ; il n'apparaît jamais comme tâches racines du flux projet.
 - **Exception** : KOMAÏ Coding, IDE de codage connecté à GitHub, conserve son
   architecture spécifique (fichiers, éditeur, aperçu live, harnais — voir TRD).
 - **Les humains sont des agents** : même carte sur le bureau, même page.

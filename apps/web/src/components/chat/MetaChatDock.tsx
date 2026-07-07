@@ -12,7 +12,7 @@
  * dropdown); on home it talks to the system LLM.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, ScrollText, SendHorizonal } from 'lucide-react';
+import { Loader2, Plus, ScrollText, SendHorizonal } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import ChatView from './ChatView';
 import type { AgentTabId, MainTab } from '@/core/types';
@@ -25,6 +25,7 @@ const HOME_TABS: { id: MainTab; labelKey: string }[] = [
 
 const AGENT_TABS: { id: AgentTabId; labelKey: string }[] = [
   { id: 'chat', labelKey: 'tabChat' },
+  { id: 'flow', labelKey: 'tabFlow' }, // meta-agents only (filtered below)
   { id: 'inputs', labelKey: 'tabInputs' },
   { id: 'work', labelKey: 'tabWork' },
   { id: 'conformity', labelKey: 'tabConformity' },
@@ -48,6 +49,8 @@ const MetaChatDock: React.FC = () => {
     sendMessage,
     isChatLoading,
     messages,
+    isMetaAgent,
+    createSubFlow,
   } = useApp();
   const [text, setText] = useState('');
   const [isOverlayVisible, setIsOverlayVisible] = useState(false);
@@ -107,7 +110,7 @@ const MetaChatDock: React.FC = () => {
         className={`flex items-center gap-1 p-1 rounded-full backdrop-blur-xl border overflow-x-auto max-w-full custom-scrollbar ${theme.glassBg} ${theme.glassBorder}`}
       >
         {inAgent
-          ? AGENT_TABS.map((tab) =>
+          ? AGENT_TABS.filter((tab) => tab.id !== 'flow' || (activeAgent && isMetaAgent(activeAgent.id))).map((tab) =>
               tab.id === 'logs' ? (
                 // Logs tab: hover reveals a menu above with the 3 traced views.
                 <div
@@ -172,6 +175,21 @@ const MetaChatDock: React.FC = () => {
                 {t[tab.labelKey]}
               </button>
             ))}
+
+        {/* « + » (right of the tab bar): detail this agent into a SUB-FLOW —
+            it becomes a META-AGENT and gains its « Flux » tab. */}
+        {inAgent && activeAgent && activeAgent.kind !== 'human' && !isMetaAgent(activeAgent.id) && (
+          <button
+            aria-label={t.detailSubFlow}
+            title={t.detailSubFlow}
+            onClick={() => {
+              if (createSubFlow(activeAgent.id)) setAgentTab('flow');
+            }}
+            className={`shrink-0 w-9 h-9 ml-1 rounded-full flex items-center justify-center border ${theme.glassBorder} ${theme.glassHover} ${theme.secondaryText}`}
+          >
+            <Plus size={15} aria-hidden />
+          </button>
+        )}
       </nav>
 
       {/* Single contextual chat input (talks to the open agent) */}
