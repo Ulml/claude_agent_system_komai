@@ -11,7 +11,7 @@ import type { AgentFolder, AgentProfile } from '@/core/types';
 
 /** Full agent card. In selection mode, clicking designates the agent. */
 export const AgentCard: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
-  const { theme, t, setView, tasks, isSelectionMode, selectedAgentIds, toggleAgentSelection } = useApp();
+  const { theme, t, setView, tasks, isSelectionMode, selectedAgentIds, toggleAgentSelection, isMetaAgent } = useApp();
   const Icon = agent.icon;
   const runningTask = tasks.find((task) => task.agentId === agent.id && task.status === 'running');
   const status = runningTask ? 'working' : agent.status;
@@ -52,7 +52,16 @@ export const AgentCard: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
           </span>
           <span className={`block text-xs leading-snug ${theme.mutedText}`}>{agent.tagline}</span>
         </span>
-        <StatusPill status={status} />
+        <span className="flex items-center gap-1.5 flex-wrap">
+          <StatusPill status={status} />
+          {isMetaAgent(agent.id) && (
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${theme.glassBorder} ${theme.secondaryText}`}
+            >
+              ▣ {t.metaAgent}
+            </span>
+          )}
+        </span>
       </button>
     </Panel>
   );
