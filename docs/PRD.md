@@ -17,16 +17,28 @@ comportant des centaines voire des milliers d'étapes.
   présents sur **toutes** les pages (`MetaChatDock`) — c'est l'**unique
   surface de saisie** de tout l'OS (aucun autre champ, bouton d'action ou
   prompt dédié n'existe ailleurs à l'écran).
-- Le destinataire est **contextuel**, pas un sélecteur : sur l'accueil/Flux/
-  Système on parle au **LLM général**, dans la page d'un agent on parle à
-  **cet agent** (orchestrateur, juge et KOMAÏ inclus) — pas de menu déroulant.
-- L'historique s'ouvre en surcouche de verre au-dessus de la zone de saisie.
+- Le destinataire est **contextuel**, pas un sélecteur : sur l'accueil/Flux
+  on parle au **LLM général**, dans la page d'un agent on parle à **cet
+  agent** (orchestrateur, juge et KOMAÏ inclus) — pas de menu déroulant.
+- **Chaque agent a un onglet « Chat »**, premier onglet de sa page : c'est
+  là que vit sa conversation (pas de surcouche au-dessus du dock dans une
+  page d'agent ; la surcouche de verre n'existe que sur l'accueil/Flux).
+- **Les actions ouvrent l'agent qui agit** : un objectif envoyé depuis
+  l'accueil alors que le flux du projet est vide est une action
+  d'orchestration — la conversation est réadressée à l'**Orchestrateur**
+  et sa page s'ouvre sur l'onglet Chat, où l'on voit sa réponse et le
+  lancement du flux (Génésis).
 
 ## 3. Cycle de vie d'un projet
 
 1. Création du projet (nom + objectif) via la modale Projet.
 2. L'orchestrateur décompose l'objectif en un **flux de bout en bout** de
    tâches ; chaque tâche reçoit une `TaskSpecification` (contrat) et un agent.
+   Si l'utilisateur n'a **pas fourni de document de référence** (PRD, cahier
+   des charges…), le flux **commence par des recherches internet** — le
+   contexte/environnement de la demande et les spécifications types / état
+   de l'art de ce type d'objet — car l'orchestrateur n'invente jamais les
+   entrées manquantes ; le flux se termine par la porte du juge.
 3. Exécution supervisée : statuts temps réel, événements de travail
    SENSE/PLAN/ACT/OBSERVE, sortie (`TaskOutput`) et rapport du juge
    (`ConformityReport`) par tâche.
@@ -60,12 +72,13 @@ supplémentaire —, N'IMPORTE QUELLE demande déclenche le pipeline génératif
   seul le contenu varie : persona, skills, mémoire, liaison LLM, outils.
 - **LLM agnostique** : chaque agent est lié à un fournisseur+modèle
   quelconque (API cloud ou local — Ollama/LMLite).
-- **Page web dédiée par agent**, 5 onglets (le minimum requis est 4) :
-  1. *Présentation* — README (besoins, méthode, livrables) + algorithme Mermaid ;
+- **Page web dédiée par agent**, onglets dans l'ordre (Chat en premier) :
+  1. *Chat* — la conversation avec CET agent (onglet par défaut) ;
   2. *Entrées* — inputs et contrats reçus ;
   3. *Travail en direct* — le flux SENSE/PLAN/ACT/OBSERVE en dynamique ;
   4. *Conformité* — les rapports du juge sur ses sorties ;
-  5. *Apprentissage* — les 4 modes et les mises à jour de skills appliquées.
+  5. *Apprentissage* — les 4 modes et les mises à jour de skills appliquées ;
+  6. *Compétences*, *Logs*, *Présentation* (README + algorithme + méthode).
 - **Exception** : KOMAÏ Coding, IDE de codage connecté à GitHub, conserve son
   architecture spécifique (fichiers, éditeur, aperçu live, harnais — voir TRD).
 - **Les humains sont des agents** : même carte sur le bureau, même page.
