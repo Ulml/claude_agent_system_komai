@@ -14,9 +14,12 @@ comportant des centaines voire des milliers d'étapes.
 ## 2. Le méta-chat
 
 - **Une seule fenêtre de chat** + des onglets de navigation juste au-dessus,
-  présents sur **toutes** les pages (`MetaChatDock`).
-- Le sélecteur de destinataire permet de parler au **LLM général**, à
-  l'**orchestrateur**, à n'importe quel **agent** (juge et KOMAÏ inclus).
+  présents sur **toutes** les pages (`MetaChatDock`) — c'est l'**unique
+  surface de saisie** de tout l'OS (aucun autre champ, bouton d'action ou
+  prompt dédié n'existe ailleurs à l'écran).
+- Le destinataire est **contextuel**, pas un sélecteur : sur l'accueil/Flux/
+  Système on parle au **LLM général**, dans la page d'un agent on parle à
+  **cet agent** (orchestrateur, juge et KOMAÏ inclus) — pas de menu déroulant.
 - L'historique s'ouvre en surcouche de verre au-dessus de la zone de saisie.
 
 ## 3. Cycle de vie d'un projet
@@ -32,9 +35,10 @@ comportant des centaines voire des milliers d'étapes.
 
 ## 3 bis. Le moteur GÉNÉSIS (orchestrateur génératif)
 
-Depuis le prompt central de l'accueil (« Que voulez-vous accomplir ? ») ou en
-parlant à l'orchestrateur, N'IMPORTE QUELLE demande déclenche le pipeline
-génératif (`apps/web/src/core/genesis.ts`) :
+En parlant au **LLM général** (accueil) ou à l'**orchestrateur** — via le
+méta-chat, seule surface de saisie de l'OS, sans aucun prompt dédié
+supplémentaire —, N'IMPORTE QUELLE demande déclenche le pipeline génératif
+(`apps/web/src/core/genesis.ts`) :
 1. **Analyse d'intention** : détection des domaines de connaissance requis
    (bibliothèque de domaines + repli générique — fonctionne pour toute demande) ;
 2. **Création des agents manquants** : un « Spécialiste {Domaine} » par
@@ -44,9 +48,11 @@ génératif (`apps/web/src/core/genesis.ts`) :
    spécialistes déjà publiés sont réutilisés (SSOT) ;
 3. **Conception du flux DAG** : dossiers spécialistes en PARALLÈLE →
    analyse croisée → synthèse → revue du juge, chaque tâche contractualisée ;
-4. **Exécution en direct** : timeline Génésis sur l'accueil, agents qui se
+4. **Exécution en direct** : timeline Génésis dans l'onglet « Travail en
+   direct » de l'Orchestrateur (même principe que le Curateur : le résultat
+   d'un agent vit dans sa propre page, jamais sur le bureau), agents qui se
    matérialisent dans un dossier « Équipe Génésis », flux suivi en temps réel
-   (marqueur ∥ pour les tâches parallèles).
+   dans l'onglet Flux (marqueur ∥ pour les tâches parallèles).
 
 ## 3 ter. Le modèle SYSTÈME (MBSE, orchestrateur génératif)
 

@@ -14,6 +14,7 @@ import { MicroLabel, StatusPill } from '@/components/ui/Glass';
 import { Markdown } from '@/components/ui/Markdown';
 import MermaidFlow from '@/components/ui/MermaidFlow';
 import MethodSection from './MethodSection';
+import GenesisTimeline from '@/components/genesis/GenesisTimeline';
 import type { AgentProfile } from '@/core/types';
 
 /* -------------------- derived / demo data helpers -------------------- */
@@ -117,6 +118,7 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
     acceptProposal,
     rejectProposal,
     resolveProposalName,
+    genesisEvents,
   } = useApp();
 
   const agentTasks = tasks.filter((task) => task.agentId === agent.id);
@@ -203,8 +205,10 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
         {/* 2 — Travail en direct */}
         {agentTab === 'work' && (
           <div className="space-y-5">
-            {agentEvents.length === 0 && (agent.id !== 'curator' || proposals.length === 0) ? (
-              <EmptyDef text={agent.id === 'curator' ? t.curatorHint : t.defWork} />
+            {agentEvents.length === 0 &&
+            (agent.id !== 'curator' || proposals.length === 0) &&
+            (agent.id !== 'orchestrator' || genesisEvents.length === 0) ? (
+              <EmptyDef text={agent.id === 'curator' ? t.curatorHint : agent.id === 'orchestrator' ? t.orchestratorHint : t.defWork} />
             ) : (
               <ol className="space-y-3" aria-live="polite">
                 {agentEvents.map((e) => (
@@ -269,6 +273,16 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* ORCHESTRATEUR: the Génésis timeline (agents created, flow
+                designed, run) is ITS live work output — same SSOT pattern
+                as the Curateur above; triggered only via the meta-chat. */}
+            {agent.id === 'orchestrator' && genesisEvents.length > 0 && (
+              <div className="space-y-2">
+                <MicroLabel>{t.genesisTimeline}</MicroLabel>
+                <GenesisTimeline events={genesisEvents} />
               </div>
             )}
           </div>
