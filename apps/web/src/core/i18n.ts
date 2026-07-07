@@ -8,6 +8,15 @@ import type { Language } from './types';
 type Dict = Record<string, string>;
 
 const FR: Dict = {
+  system: 'Système',
+  systemEmpty: 'Aucun système conçu : décrivez un objet physique (ex. « une maison en briques de terre crue ») dans le prompt de l’accueil ou à l’orchestrateur.',
+  systemIteration: 'Itération',
+  systemRefineHint: 'dites « raffine » à l’orchestrateur pour détailler',
+  systemFlows: 'Flux fonctionnels',
+  systemFunctions: 'fonctions physiques',
+  systemTasksBadge: 'tâches',
+  systemLinkHint: 'Chaque nœud-fonction est cliquable (page de l’agent) et porte le nombre de tâches de construction qui le réalisent : c’est le lien entre le flux de tâches (de l’idée à la remise des clés) et le flux fonctionnel de l’objet.',
+  realizesLabel: 'Réalise les fonctions',
   genesisTitle: 'Que voulez-vous accomplir ?',
   genesisSubtitle: 'L’orchestrateur crée les agents nécessaires, conçoit le flux de tâches et l’exécute sous vos yeux.',
   genesisPlaceholder: 'Décrivez votre objectif — aussi ambitieux soit-il…',
@@ -173,6 +182,15 @@ const FR: Dict = {
 };
 
 const EN: Dict = {
+  system: 'System',
+  systemEmpty: 'No system designed yet: describe a physical object (e.g. “a raw-earth brick house”) in the home prompt or to the orchestrator.',
+  systemIteration: 'Iteration',
+  systemRefineHint: 'say “refine” to the orchestrator to add detail',
+  systemFlows: 'Functional flows',
+  systemFunctions: 'physical functions',
+  systemTasksBadge: 'tasks',
+  systemLinkHint: 'Each function node is clickable (agent page) and shows how many construction tasks realise it: the link between the task flow (idea → keys) and the functional flow of the object.',
+  realizesLabel: 'Realises functions',
   genesisTitle: 'What do you want to accomplish?',
   genesisSubtitle: 'The orchestrator creates the required agents, designs the task flow and runs it before your eyes.',
   genesisPlaceholder: 'Describe your goal — however ambitious…',
@@ -338,6 +356,15 @@ const EN: Dict = {
 };
 
 const ES: Dict = {
+  system: 'Sistema',
+  systemEmpty: 'Ningún sistema diseñado: describa un objeto físico (ej. «una casa de adobe») en el prompt de inicio o al orquestador.',
+  systemIteration: 'Iteración',
+  systemRefineHint: 'diga «refina» al orquestador para detallar',
+  systemFlows: 'Flujos funcionales',
+  systemFunctions: 'funciones físicas',
+  systemTasksBadge: 'tareas',
+  systemLinkHint: 'Cada nodo-función es clicable (página del agente) y muestra cuántas tareas de construcción lo realizan: el vínculo entre el flujo de tareas y el flujo funcional del objeto.',
+  realizesLabel: 'Realiza las funciones',
   genesisTitle: '¿Qué quiere lograr?',
   genesisSubtitle: 'El orquestador crea los agentes necesarios, diseña el flujo de tareas y lo ejecuta ante sus ojos.',
   genesisPlaceholder: 'Describa su objetivo, por ambicioso que sea…',

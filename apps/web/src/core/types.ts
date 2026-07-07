@@ -250,6 +250,12 @@ export interface TaskNode {
   output: TaskOutput | null;
   conformity: ConformityReport | null;
   accessible: boolean;
+  /**
+   * MBSE link: the function agents this construction task REALISES.
+   * This is what ties the task flow (build the house, idea → keys) to the
+   * functional flow of the object (thermal / mechanical / humidity…).
+   */
+  realizes?: string[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -343,8 +349,49 @@ export interface RepoFile {
 /* ------------------------------------------------------------------ */
 
 /** Top-level views reachable from the navigation tabs above the meta-chat.
- *  KOMAÏ Coding is an agent icon like any other — it is NOT a top tab. */
-export type MainTab = 'HOME' | 'FLUX';
+ *  KOMAÏ Coding is an agent icon like any other — it is NOT a top tab.
+ *  SYSTEM is the MBSE block diagram of the designed physical system. */
+export type MainTab = 'HOME' | 'FLUX' | 'SYSTEM';
+
+/* ------------------------------------------------------------------ */
+/* MBSE system model — meta-components, function agents, flows         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A META-COMPONENT of the MBSE block diagram: a PHYSICAL component of the
+ * system (mechanical, electronic, material…). It contains function agents —
+ * one agent per PHYSICAL FUNCTION of the component (e.g. for a raw-earth
+ * brick: thermal insulation, mechanical stress, thermal inertia,
+ * hygrometrics). 'environment' is the outside world (source), 'user' is the
+ * user of the object (sink).
+ */
+export interface SystemComponent {
+  id: string;
+  projectId: string;
+  name: string;
+  kind: 'environment' | 'component' | 'user';
+  /** The function agents living INSIDE this meta-component. */
+  functionAgentIds: string[];
+  /** Iteration at which this component appeared (iterative refinement). */
+  iteration: number;
+}
+
+/**
+ * An end-to-end FUNCTIONAL FLOW of the system: it starts at the
+ * environment, crosses the function agents that carry it (each agent
+ * computes its share of the flow), and ends at the user.
+ * E.g. « Flux thermique » : Extérieur → Isolation → Inertie → Habitant.
+ */
+export interface FunctionalFlow {
+  id: string;
+  projectId: string;
+  name: string;
+  /** Accessible color for the diagram path + legend. */
+  color: string;
+  /** Ordered node ids: [environment, ...function agents, user]. */
+  path: string[];
+  iteration: number;
+}
 
 export type View =
   | { kind: 'tab'; tab: MainTab }

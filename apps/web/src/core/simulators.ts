@@ -58,6 +58,31 @@ export const shieldTransmission = (macroXsPerM: number, thicknessM: number): num
 export const effectiveDose = (contributions: { wR: number; dGy: number }[]): number =>
   contributions.reduce((sum, c) => sum + c.wR * c.dGy, 0);
 
+/* ---- Building-physics functions (MBSE function agents) ------------------ */
+
+/** Fourier conduction heat flux through a wall: q = λ·ΔT/e (W/m²). */
+export const heatFlux = (lambdaWmK: number, deltaTK: number, thicknessM: number): number =>
+  (lambdaWmK * deltaTK) / thicknessM;
+
+/** Thermal resistance of a layer: R = e/λ (m²·K/W). */
+export const thermalResistance = (thicknessM: number, lambdaWmK: number): number =>
+  thicknessM / lambdaWmK;
+
+/** Thermal diffusivity: α = λ/(ρ·c) (m²/s) — drives thermal inertia. */
+export const thermalDiffusivity = (lambdaWmK: number, rhoKgM3: number, cJkgK: number): number =>
+  lambdaWmK / (rhoKgM3 * cJkgK);
+
+/** Mechanical normal stress: σ = F/A (Pa). */
+export const normalStress = (forceN: number, areaM2: number): number => forceN / areaM2;
+
+/** Safety factor against rupture: SF = σ_rupture / σ (—). */
+export const safetyFactor = (ruptureStrengthPa: number, appliedStressPa: number): number =>
+  ruptureStrengthPa / appliedStressPa;
+
+/** Moisture buffering over a RH cycle: m = MBV·ΔRH·A (g), MBV in g/(m²·%RH). */
+export const moistureBuffered = (mbv: number, deltaRHpct: number, areaM2: number): number =>
+  mbv * deltaRHpct * areaM2;
+
 /**
  * Alcubierre warp: order-of-magnitude negative energy of the original bubble.
  * E ~ -(c⁴/G) · v · R · σ  (v in units of c). Returned as |E| in joules for

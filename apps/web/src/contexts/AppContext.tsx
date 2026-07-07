@@ -46,6 +46,8 @@ import {
 import { agentMethods } from '@/core/agent_methods';
 import { runFlowLocally } from '@/core/orchestrator';
 import { designGenesisPlan, type GenesisEvent } from '@/core/genesis';
+import { designSystemModel, refineSystemModel, MBSE_TRIGGER } from '@/core/mbse';
+import type { FunctionalFlow, SystemComponent } from '@/core/types';
 import { proposeMetaNodeForScope, proposeMetaNodes } from '@/core/curator';
 import { generateText } from '@/services/llm';
 import { persistProject } from '@/services/firebase';
@@ -132,6 +134,14 @@ interface AppContextType {
   genesisEvents: GenesisEvent[];
   isGenesisRunning: boolean;
 
+  // MBSE — block diagram of the physical system (meta-components,
+  // function agents, end-to-end functional flows), iteratively refined
+  systemComponents: SystemComponent[];
+  functionalFlows: FunctionalFlow[];
+  systemIteration: number;
+  /** Returns false when busy or already fully refined. */
+  refineSystem: () => boolean;
+
   // Meta-chat — contextual: talks to the open agent, else the system LLM
   messages: ChatMessage[];
   /** The agent the chat currently addresses (derived from the view). */
@@ -184,6 +194,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [learning] = useState<LearningEntry[]>(seedLearning);
   const [genesisEvents, setGenesisEvents] = useState<GenesisEvent[]>([]);
   const [isGenesisRunning, setIsGenesisRunning] = useState(false);
+  const [systemComponents, setSystemComponents] = useState<SystemComponent[]>([]);
+  const [functionalFlows, setFunctionalFlows] = useState<FunctionalFlow[]>([]);
+  const [systemIteration, setSystemIteration] = useState(0);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -487,9 +500,125 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    * a dedicated folder, contract a task DAG and execute it live. The
    * timeline events stream onto the home page while it happens.
    */
+  /** Shared tail of both pipelines: stream events, inject tasks, run flow. */
+  const streamAndRun = useCallback(
+    (events: GenesisEvent[], newTasks: TaskNode[]) => {
+      events.forEach((ev, i) => {
+        setTimeout(() => setGenesisEvents((prev) => [...prev, ev]), 450 * i);
+      });
+      setTimeout(() => {
+        setTasks((prev) => [...prev, ...newTasks]);
+        setIsFlowRunning(true);
+        cancelFlowRef.current = runFlowLocally(newTasks, {
+          onTaskUpdate: (updated) =>
+            setTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task))),
+          onWorkEvent: (event) => setWorkEvents((prev) => [...prev, event]),
+          onDone: () => {
+            setIsFlowRunning(false);
+            setIsGenesisRunning(false);
+            setGenesisEvents((prev) => [
+              ...prev,
+              { id: `g-done-${Date.now()}`, kind: 'done', label: 'Flux terminé', detail: `${newTasks.length} tâches livrées, jugées conformes.` },
+            ]);
+          },
+        });
+      }, 450 * events.length + 300);
+    },
+    []
+  );
+
+  /**
+   * MBSE pipeline: meta-components (desktop folders) + function agents +
+   * end-to-end functional flows + LINKED construction task flow.
+   */
+  const runSystemGenesis = useCallback(
+    (request: string) => {
+      if (!selectedProjectId) return;
+      const model = designSystemModel(request, selectedProjectId);
+      setIsGenesisRunning(true);
+      setGenesisEvents([]);
+
+      model.functionAgents.forEach((a) => createAgent(a));
+      setSystemComponents(model.components);
+      setFunctionalFlows(model.flows);
+      setSystemIteration(1);
+
+      // Each meta-component becomes an agent FOLDER on the desktop.
+      const component = model.components.find((c) => c.kind === 'component')!;
+      setFolders((prev) => [
+        ...prev,
+        { id: `folder-${component.id}`, name: component.name, agentIds: component.functionAgentIds },
+      ]);
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === selectedProjectId
+            ? {
+                ...p,
+                agentIds: [...new Set([...p.agentIds, ...model.functionAgents.map((a) => a.id)])],
+                perimeters: p.perimeters.map((per) =>
+                  per.role === 'owner' ? { ...per, taskIds: [...per.taskIds, ...model.tasks.map((task) => task.id)] } : per
+                ),
+              }
+            : p
+        )
+      );
+      streamAndRun(model.events, model.tasks);
+      // Land on the SYSTEM diagram once the timeline has streamed.
+      setTimeout(() => setView({ kind: 'tab', tab: 'SYSTEM' }), 450 * model.events.length + 600);
+    },
+    [selectedProjectId, createAgent, streamAndRun]
+  );
+
+  /** Planned refinement: next iteration densifies diagram + task graph. */
+  const refineSystem = useCallback((): boolean => {
+    if (!selectedProjectId || systemIteration === 0 || isGenesisRunning) return false;
+    const component = systemComponents.find((c) => c.kind === 'component');
+    const env = systemComponents.find((c) => c.kind === 'environment');
+    const user = systemComponents.find((c) => c.kind === 'user');
+    if (!component || !env || !user) return false;
+    // Level-2 functions only exist once; a second refine is a no-op.
+    if (systemIteration >= 2) return false;
+
+    const next = systemIteration + 1;
+    const delta = refineSystemModel(selectedProjectId, component, env.id, user.id, next);
+    setIsGenesisRunning(true);
+    setGenesisEvents([]);
+    delta.functionAgents.forEach((a) => createAgent(a));
+    setSystemComponents((prev) =>
+      prev.map((c) =>
+        c.id === component.id
+          ? { ...c, functionAgentIds: [...c.functionAgentIds, ...delta.functionAgents.map((a) => a.id)] }
+          : c
+      )
+    );
+    setFunctionalFlows((prev) => [...prev, ...delta.flows]);
+    setSystemIteration(next);
+    setFolders((prev) =>
+      prev.map((f) =>
+        f.id === `folder-${component.id}`
+          ? { ...f, agentIds: [...f.agentIds, ...delta.functionAgents.map((a) => a.id)] }
+          : f
+      )
+    );
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === selectedProjectId
+          ? { ...p, agentIds: [...new Set([...p.agentIds, ...delta.functionAgents.map((a) => a.id)])] }
+          : p
+      )
+    );
+    streamAndRun(delta.events, delta.tasks);
+    return true;
+  }, [selectedProjectId, systemIteration, isGenesisRunning, systemComponents, createAgent, streamAndRun]);
+
   const runGenesis = useCallback(
     (request: string) => {
       if (!selectedProjectId || isGenesisRunning || !request.trim()) return;
+      // Physical-system requests route to the MBSE pipeline.
+      if (MBSE_TRIGGER.test(request)) {
+        runSystemGenesis(request.trim());
+        return;
+      }
       const plan = designGenesisPlan(request.trim(), selectedProjectId, agents);
       setIsGenesisRunning(true);
       setGenesisEvents([]);
@@ -546,7 +675,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }, 450 * plan.events.length + 300);
     },
-    [selectedProjectId, isGenesisRunning, agents, createAgent]
+    [selectedProjectId, isGenesisRunning, agents, createAgent, runSystemGenesis]
   );
 
   /* ----------------------------- Meta-chat ----------------------------- */
@@ -572,7 +701,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const hasTasks = tasks.some((task) => task.projectId === selectedProjectId);
         // GENESIS fires on any fresh goal, and whenever agent creation is
         // explicitly requested (« crée un agent… », « crée les agents… »).
-        if (!hasTasks || /cr[ée]{1,2}r?s?\s+(un |des |les |l['’])?agents?/i.test(text)) {
+        if (/raffin|d[ée]taill|it[éè]r/i.test(text) && systemIteration > 0) {
+          // Planned refinement of the MBSE diagram (next iteration).
+          flowNote = refineSystem()
+            ? '\n\n→ Itération suivante du diagramme lancée (voir l’onglet Système).'
+            : '\n\n→ Impossible pour l’instant : le flux en cours doit se terminer (ou le diagramme est déjà au niveau de détail maximal).';
+        } else if (!hasTasks || /cr[ée]{1,2}r?s?\s+(un |des |les |l['’])?agents?/i.test(text)) {
           runGenesis(text);
           flowNote =
             '\n\n→ Génésis lancé : création des agents spécialistes, conception du flux et exécution en direct (voir Accueil et Flux).';
@@ -617,7 +751,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsChatLoading(false);
       }
     },
-    [agents, chatTarget, providers, selectedProjectId, tasks, isGenesisRunning, runGenesis, requestCuratorProposals]
+    [agents, chatTarget, providers, selectedProjectId, tasks, isGenesisRunning, runGenesis, systemIteration, refineSystem, requestCuratorProposals]
   );
 
   /* --------------------------- LLM providers --------------------------- */
@@ -692,6 +826,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     runGenesis,
     genesisEvents,
     isGenesisRunning,
+    systemComponents,
+    functionalFlows,
+    systemIteration,
+    refineSystem,
     messages,
     chatTarget,
     sendMessage,
