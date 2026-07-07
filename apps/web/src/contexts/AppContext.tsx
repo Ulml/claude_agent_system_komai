@@ -170,7 +170,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // The signed-in user. 'user-owner' is the owner and sees everything.
   const [currentUserId, setCurrentUserId] = useState('user-owner');
   const [view, setView] = useState<View>({ kind: 'tab', tab: 'HOME' });
-  const [agentTab, setAgentTab] = useState<AgentTabId>('inputs');
+  const [agentTab, setAgentTab] = useState<AgentTabId>('chat');
   const [logsFilter, setLogsFilter] = useState<'all' | 'user' | 'judge' | 'learning'>('all');
   const [agentTitleHidden, setAgentTitleHidden] = useState(false);
 
@@ -203,9 +203,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // The chat is contextual: it addresses the open agent, else the system LLM.
   const chatTarget = view.kind === 'agent' ? view.agentId : 'system-llm';
 
-  // Opening a new agent resets its tabs to « Entrées » (default view).
+  // Opening a new agent resets its tabs to « Chat » (default view: every
+  // agent's conversation is the first tab of its page).
   useEffect(() => {
-    if (view.kind === 'agent') setAgentTab('inputs');
+    if (view.kind === 'agent') setAgentTab('chat');
   }, [view.kind === 'agent' ? view.agentId : null]);
 
   // Once the open agent starts a run, auto-switch to « Travail en direct ».
@@ -682,7 +683,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sendMessage = useCallback(
     async (text: string) => {
-      const target = agents.find((a) => a.id === chatTarget) ?? agents[0];
+      let target = agents.find((a) => a.id === chatTarget) ?? agents[0];
+
+      // A goal sent from Home while the project's flow is empty is an
+      // ACTION for the orchestrator, not small talk with the general LLM:
+      // the conversation is re-addressed to the ORCHESTRATEUR and the app
+      // opens its page (Chat tab) so the user watches the right agent act.
+      const projectHasTasks = tasks.some((task) => task.projectId === selectedProjectId);
+      if (target.id === 'system-llm' && selectedProjectId && !projectHasTasks) {
+        target = agents.find((a) => a.id === 'orchestrator') ?? target;
+        setView({ kind: 'agent', agentId: 'orchestrator' });
+        setAgentTab('chat');
+      }
+
       const userMsg: ChatMessage = {
         id: `m-${Date.now()}`,
         role: 'user',
@@ -701,7 +714,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       //   « Travail en direct » tab).
       let flowNote = '';
       if ((target.id === 'orchestrator' || target.id === 'system-llm') && selectedProjectId && !isGenesisRunning) {
-        const hasTasks = tasks.some((task) => task.projectId === selectedProjectId);
         // GENESIS fires on any fresh goal, and whenever agent creation is
         // explicitly requested (« crée un agent… », « crée les agents… »).
         if (/raffin|d[ée]taill|it[éè]r/i.test(text) && systemIteration > 0) {
@@ -709,7 +721,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           flowNote = refineSystem()
             ? '\n\n→ Itération suivante du diagramme lancée (voir l’onglet Système).'
             : '\n\n→ Impossible pour l’instant : le flux en cours doit se terminer (ou le diagramme est déjà au niveau de détail maximal).';
-        } else if (!hasTasks || /cr[ée]{1,2}r?s?\s+(un |des |les |l['’])?agents?/i.test(text)) {
+        } else if (!projectHasTasks || /cr[ée]{1,2}r?s?\s+(un |des |les |l['’])?agents?/i.test(text)) {
           runGenesis(text);
           flowNote =
             '\n\n→ Génésis lancé : création des agents spécialistes, conception du flux et exécution en direct (voir l’onglet Travail en direct de l’Orchestrateur, et Flux).';
@@ -731,10 +743,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prompt: text,
         });
         // Simulator agents are never fake: in simulated mode their reply
-        // carries the REAL values computed by core/simulators.ts.
+        // carries the REAL values computed by core/simulators.ts. When the
+        // reply already narrates an orchestration ACTION (flowNote), the
+        // demo checks are noise and are skipped.
         let replyText = result.text + flowNote;
         const method = agentMethods[target.id];
-        if (result.simulated && method?.checks?.length) {
+        if (result.simulated && !flowNote && method?.checks?.length) {
           const computed = method.checks
             .map((c) => `• ${c.label} = ${c.got.toPrecision(5)}${c.unit && c.unit !== '—' ? ` ${c.unit}` : ''}`)
             .join('\n');

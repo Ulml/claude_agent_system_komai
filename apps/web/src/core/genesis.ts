@@ -29,6 +29,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import type { AgentProfile, ComputeMethod, TaskNode } from './types';
+import { providesReferenceDoc } from './orchestrator';
 
 let uid = 0;
 const nextId = (p: string) => `${p}-${Date.now().toString(36)}-${uid++}`;
@@ -245,6 +246,47 @@ export function designGenesisPlan(
     accessible: true,
   });
 
+  // The user gave no reference document (PRD, cahier des charges…) → the
+  // flow OPENS with web research: the context/environment of the request
+  // and the typical specification / state of the art for this kind of
+  // object. The orchestrator never invents missing inputs.
+  const webResearch: TaskNode[] = providesReferenceDoc(request)
+    ? [
+        mkTask(
+          'Étude du document fourni',
+          'researcher',
+          `Extraire les exigences du document de référence pour : ${request}`,
+          'exigences.md',
+          [],
+          request
+        ),
+      ]
+    : [
+        mkTask(
+          'Recherche web — contexte & environnement',
+          'researcher',
+          `Rechercher sur internet le contexte, le site et l'environnement de la demande : ${request}`,
+          'contexte_environnement.md',
+          [],
+          request
+        ),
+        mkTask(
+          "Recherche web — spécifications types & état de l'art",
+          'researcher',
+          "Rechercher sur internet les spécifications types et l'état de l'art pour ce type de demande (aucun document de référence n'a été fourni).",
+          'specifications_types.md',
+          [],
+          request
+        ),
+      ];
+  if (!providesReferenceDoc(request)) {
+    push(
+      'intent',
+      'Aucun document de référence fourni',
+      'Le flux commence par des recherches internet : contexte/environnement et spécifications types.'
+    );
+  }
+
   const researchTasks = domains.map((domain) =>
     mkTask(
       `Dossier ${domain}`,
@@ -258,16 +300,21 @@ export function designGenesisPlan(
   const analysis = mkTask(
     'Analyse croisée',
     'analyst',
-    'Croiser et quantifier les dossiers de tous les spécialistes.',
+    'Croiser et quantifier les recherches web et les dossiers de tous les spécialistes.',
     'analyse_croisee.md',
-    researchTasks.map((task) => task.id),
-    `Dossiers : ${domains.join(', ')}`
+    [...webResearch, ...researchTasks].map((task) => task.id),
+    `Recherches web + dossiers : ${domains.join(', ')}`
   );
+  // The deliverable takes the shape the user asked for (a specification
+  // when a specification is requested — never a generic report).
+  const wantsSpec = /sp[ée]cification|cahier des charges/i.test(request);
   const synthesis = mkTask(
-    'Synthèse finale',
+    wantsSpec ? 'Rédaction de la spécification' : 'Synthèse finale',
     'writer',
-    'Rédiger le livrable final répondant à la demande.',
-    'livrable_final.md',
+    wantsSpec
+      ? `Rédiger la spécification demandée, appuyée sur les recherches et analyses : ${request}`
+      : 'Rédiger le livrable final répondant à la demande.',
+    wantsSpec ? 'specification.md' : 'livrable_final.md',
     [analysis.id],
     'analyse_croisee.md'
   );
@@ -279,12 +326,12 @@ export function designGenesisPlan(
     [synthesis.id],
     'livrable_final.md'
   );
-  const tasks = [...researchTasks, analysis, synthesis, review];
+  const tasks = [...webResearch, ...researchTasks, analysis, synthesis, review];
 
   push(
     'flow-designed',
     'Flux conçu',
-    `${tasks.length} tâches contractualisées — ${researchTasks.length} en parallèle, puis analyse → synthèse → revue.`
+    `${tasks.length} tâches contractualisées — ${webResearch.length + researchTasks.length} en parallèle (recherches web + dossiers spécialistes), puis analyse → ${wantsSpec ? 'spécification' : 'synthèse'} → revue du juge.`
   );
   push('run', 'Exécution lancée', 'Suivi en temps réel dans l’onglet Flux et sur chaque page d’agent.');
 

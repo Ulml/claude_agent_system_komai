@@ -28,14 +28,14 @@ export interface GenerateResult {
   simulated: boolean;
 }
 
-/** Deterministic offline fallback used when no API key is configured. */
+/** Deterministic offline fallback used when no API key is configured.
+ *  It must NEVER echo the system prompt back to the user (that reads as a
+ *  broken agent); it only acknowledges the request, briefly. */
 function simulate(req: GenerateRequest): GenerateResult {
-  const persona = req.system ? `${req.system.split('\n')[0]}` : 'Template_LM';
+  const excerpt = req.prompt.slice(0, 120) + (req.prompt.length > 120 ? '…' : '');
   return {
     simulated: true,
-    text:
-      `【simulation locale — ${req.model}】 ${persona} a bien reçu : « ${req.prompt.slice(0, 140)}` +
-      `${req.prompt.length > 140 ? '…' : ''} ». Configurez une clé API dans les Réglages pour une réponse réelle.`,
+    text: `Bien reçu : « ${excerpt} ».\n(simulation locale · ${req.model} — ajoutez une clé API dans les Réglages pour une réponse générée.)`,
   };
 }
 

@@ -40,6 +40,7 @@ import type {
   TaskNode,
 } from './types';
 import type { GenesisEvent } from './genesis';
+import { providesReferenceDoc } from './orchestrator';
 import {
   heatFlux,
   moistureBuffered,
@@ -379,16 +380,43 @@ export function designSystemModel(request: string, projectId: string): SystemMod
     realizes,
   });
 
-  const tIdea = mkTask('Programme & esquisse', 'researcher', 'Formaliser le besoin de l’habitant et l’esquisse.', 'programme.md', [], []);
+  // No reference document (PRD…) in the request → the flow OPENS with web
+  // research: the surroundings/environment of the system (MBSE context)
+  // and the typical specification for this kind of object. The
+  // specification is then WRITTEN from those findings — the orchestrator
+  // never invents missing inputs.
+  const hasDoc = providesReferenceDoc(request);
+  const research: TaskNode[] = hasDoc
+    ? [mkTask('Étude du document fourni', 'researcher', `Extraire les exigences du document de référence pour : ${request}`, 'exigences.md', [], [])]
+    : [
+        mkTask('Recherche web — environnement du système', 'researcher', `Rechercher sur internet le site, le climat et l'environnement (contexte MBSE) de : ${request}`, 'contexte_environnement.md', [], []),
+        mkTask('Recherche web — spécifications types', 'researcher', "Rechercher sur internet les spécifications types et l'état de l'art pour ce type d'objet (aucun PRD n'a été fourni).", 'specifications_types.md', [], []),
+      ];
+  const tSpec = mkTask(
+    'Rédaction de la spécification',
+    'writer',
+    'Rédiger la spécification du système à partir des recherches : exigences, fonctions physiques attendues, performances cibles.',
+    'specification.md',
+    research.map((r) => r.id),
+    functionAgents.map((a) => a.id)
+  );
+  const tIdea = mkTask('Programme & esquisse', 'researcher', 'Formaliser le besoin de l’habitant et l’esquisse à partir de la spécification.', 'programme.md', [tSpec.id], []);
   const tThermal = mkTask('Dimensionnement thermique', 'analyst', 'Dimensionner épaisseur et matériau pour le confort thermique.', 'calc_thermique.md', [tIdea.id], [byName.get('Isolation thermique')!, byName.get('Inertie thermique')!]);
   const tStruct = mkTask('Dimensionnement structurel', 'analyst', 'Vérifier la descente de charges et le facteur de sécurité.', 'calc_structure.md', [tIdea.id], [byName.get('Mécanique')!]);
   const tHygro = mkTask('Stratégie hygrométrique', 'researcher', 'Valider la régulation d’humidité par la terre crue.', 'calc_hygro.md', [tIdea.id], [byName.get('Hygrométrie')!]);
   const tBuild = mkTask('Construction & maçonnerie', 'writer', 'Conduire le chantier jusqu’au clos-couvert.', 'chantier.md', [tThermal.id, tStruct.id, tHygro.id], functionAgents.map((a) => a.id));
   const tKeys = mkTask('Remise des clés', 'orchestrator', 'Réception des travaux et livraison à l’habitant.', 'reception.md', [tBuild.id], []);
   const tUse = mkTask('Utilisation & mesure du confort', 'judge', 'Mesurer les flux réels en occupation (objectif ≥ 95/100).', 'mesures_confort.md', [tKeys.id], functionAgents.map((a) => a.id));
-  const tasks = [tIdea, tThermal, tStruct, tHygro, tBuild, tKeys, tUse];
+  const tasks = [...research, tSpec, tIdea, tThermal, tStruct, tHygro, tBuild, tKeys, tUse];
 
-  push('flow-designed', 'Flux de construction contractualisé', `${tasks.length} tâches, de l’idée à la remise des clés, chacune reliée aux fonctions qu’elle réalise.`);
+  if (!hasDoc) {
+    push(
+      'intent',
+      'Aucun document de référence fourni',
+      'Le flux commence par des recherches internet (environnement du système, spécifications types) puis rédige la spécification.'
+    );
+  }
+  push('flow-designed', 'Flux de construction contractualisé', `${tasks.length} tâches, des recherches et de la spécification jusqu’à la remise des clés, chacune reliée aux fonctions qu’elle réalise.`);
   push('run', 'Exécution lancée', 'Itération 1 du diagramme — demandez « raffine » à l’orchestrateur pour détailler.');
 
   return {

@@ -397,8 +397,8 @@ export type View =
   | { kind: 'tab'; tab: MainTab }
   | { kind: 'agent'; agentId: string };
 
-/** The contextual tabs of an agent page, in display order. */
-export type AgentTabId = 'inputs' | 'work' | 'conformity' | 'learning' | 'skills' | 'logs' | 'readme';
+/** The contextual tabs of an agent page, in display order (Chat first). */
+export type AgentTabId = 'chat' | 'inputs' | 'work' | 'conformity' | 'learning' | 'skills' | 'logs' | 'readme';
 
 /** One point of an agent's end-of-run conformity score history. */
 export interface ConformityPoint {

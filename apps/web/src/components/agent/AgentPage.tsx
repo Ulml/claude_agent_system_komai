@@ -15,6 +15,7 @@ import { Markdown } from '@/components/ui/Markdown';
 import MermaidFlow from '@/components/ui/MermaidFlow';
 import MethodSection from './MethodSection';
 import GenesisTimeline from '@/components/genesis/GenesisTimeline';
+import ChatView from '@/components/chat/ChatView';
 import type { AgentProfile } from '@/core/types';
 
 /* -------------------- derived / demo data helpers -------------------- */
@@ -178,6 +179,15 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
       </div>
 
       <div role="tabpanel" aria-label={t[`tab${agentTab[0].toUpperCase()}${agentTab.slice(1)}`] ?? agentTab} className="space-y-5">
+        {/* 0 — Chat (first tab: the conversation with THIS agent; the
+            input is the single MetaChatDock below, contextually addressed) */}
+        {agentTab === 'chat' &&
+          (messages.some((m) => m.targetId === agent.id) ? (
+            <ChatView filterTargetId={agent.id} />
+          ) : (
+            <EmptyDef text={t.defChat} />
+          ))}
+
         {/* 1 — Entrées */}
         {agentTab === 'inputs' &&
           (agentTasks.length === 0 ? (

@@ -24,6 +24,7 @@ const HOME_TABS: { id: MainTab; labelKey: string }[] = [
 ];
 
 const AGENT_TABS: { id: AgentTabId; labelKey: string }[] = [
+  { id: 'chat', labelKey: 'tabChat' },
   { id: 'inputs', labelKey: 'tabInputs' },
   { id: 'work', labelKey: 'tabWork' },
   { id: 'conformity', labelKey: 'tabConformity' },
@@ -66,15 +67,19 @@ const MetaChatDock: React.FC = () => {
     if (!isChatLoading) inputRef.current?.focus();
   }, [isChatLoading]);
 
+  const inAgent = view.kind === 'agent';
+
   const handleSend = () => {
     const trimmed = text.trim();
     if (!trimmed || isChatLoading) return;
-    setIsOverlayVisible(true);
+    // Inside an agent, the conversation lives in ITS « Chat » tab — no
+    // overlay. The overlay is only used on the Home/Flux views. Note that
+    // sendMessage may itself navigate into the Orchestrateur (actions).
+    if (inAgent) setAgentTab('chat');
+    else setIsOverlayVisible(true);
     setText('');
     void sendMessage(trimmed);
   };
-
-  const inAgent = view.kind === 'agent';
   const activeAgent = inAgent ? agents.find((a) => a.id === view.agentId) : null;
   const activeTab = view.kind === 'tab' ? view.tab : null;
   const tabBtn = (selected: boolean) =>
@@ -85,7 +90,7 @@ const MetaChatDock: React.FC = () => {
   return (
     <div ref={dockRef} className="w-full flex flex-col items-center gap-3 z-30 px-3 pb-4 sm:pb-6 shrink-0 relative">
       {/* Floating chat overlay above the dock */}
-      {messages.length > 0 && isOverlayVisible && (
+      {!inAgent && messages.length > 0 && isOverlayVisible && (
         <div className="absolute bottom-full w-full flex justify-center pb-3 px-3">
           <div
             className={`w-full max-w-3xl max-h-[55vh] overflow-y-auto custom-scrollbar rounded-[2rem] p-4 backdrop-blur-xl border ${theme.glassBg} ${theme.glassBorder} animate-fade-up`}
