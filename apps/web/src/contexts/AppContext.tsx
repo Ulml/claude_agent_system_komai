@@ -564,18 +564,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setMessages((prev) => [...prev, userMsg]);
       setIsChatLoading(true);
 
-      // The chat is the SSOT trigger of agent behaviour:
-      // — ORCHESTRATEUR: a goal sent while the project's flow is empty
-      //   generates the contracted task flow (visible in « Flux »).
+      // The chat is the SSOT trigger of agent behaviour — the ONLY input
+      // surface in the OS (no separate prompt box anywhere):
+      // — ORCHESTRATEUR or LLM GÉNÉRAL (the Home chat target): a goal sent
+      //   while the project's flow is empty generates the contracted task
+      //   flow (visible in « Flux » and narrated in the Orchestrateur's own
+      //   « Travail en direct » tab).
       let flowNote = '';
-      if (target.id === 'orchestrator' && selectedProjectId && !isGenesisRunning) {
+      if ((target.id === 'orchestrator' || target.id === 'system-llm') && selectedProjectId && !isGenesisRunning) {
         const hasTasks = tasks.some((task) => task.projectId === selectedProjectId);
         // GENESIS fires on any fresh goal, and whenever agent creation is
         // explicitly requested (« crée un agent… », « crée les agents… »).
         if (!hasTasks || /cr[ée]{1,2}r?s?\s+(un |des |les |l['’])?agents?/i.test(text)) {
           runGenesis(text);
           flowNote =
-            '\n\n→ Génésis lancé : création des agents spécialistes, conception du flux et exécution en direct (voir Accueil et Flux).';
+            '\n\n→ Génésis lancé : création des agents spécialistes, conception du flux et exécution en direct (voir l’onglet Travail en direct de l’Orchestrateur, et Flux).';
         }
       }
       // — CURATEUR: any message asks it to work; its meta-node proposals

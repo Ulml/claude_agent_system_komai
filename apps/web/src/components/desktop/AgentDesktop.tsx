@@ -2,17 +2,18 @@
  * AgentDesktop — the OS home screen.
  *
  * Shows the agents of the SELECTED PROJECT as icons in a bento grid, with
- * folders (iOS-style) opening inline (FolderView). No action buttons here:
- * per the SSOT principle, everything goes through the agents themselves —
- * folder proposals are requested by chatting with the CURATOR (its results
- * appear in its « Travail en direct » tab), and flows by chatting with the
- * ORCHESTRATEUR.
+ * folders (iOS-style) opening inline (FolderView). No action buttons here,
+ * no separate prompt box either: per the SSOT principle there is only ONE
+ * input surface in the whole OS — the MetaChatDock. Folder proposals are
+ * requested by chatting with the CURATOR (results in its « Travail en
+ * direct » tab); the Génésis pipeline (agent + flow creation) is requested
+ * by chatting with the ORCHESTRATEUR or the LLM Général (results in the
+ * Orchestrateur's own « Travail en direct » tab and in Flux).
  */
 import React from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { MicroLabel } from '@/components/ui/Glass';
 import { AgentCard, FolderTile } from './AgentTiles';
-import GenesisHero from '@/components/genesis/GenesisHero';
 
 const AgentDesktop: React.FC = () => {
   const { t, visibleAgents, visibleFolders } = useApp();
@@ -25,8 +26,6 @@ const AgentDesktop: React.FC = () => {
 
   return (
     <section aria-label={t.agents} className="w-full max-w-5xl mx-auto px-4 py-6 animate-fade-up">
-      {/* The generative prompt of the Orchestrator (Genesis engine). */}
-      <GenesisHero />
       <MicroLabel className="mb-4">{t.agents}</MicroLabel>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
