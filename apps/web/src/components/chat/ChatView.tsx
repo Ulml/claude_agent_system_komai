@@ -6,9 +6,12 @@
 import React, { useEffect, useRef } from 'react';
 import { useApp } from '@/contexts/AppContext';
 
-const ChatView: React.FC = () => {
-  const { theme, t, messages, agents, isChatLoading } = useApp();
+/** When `filterTargetId` is given, only that agent's conversation is shown
+ *  (used by the « Chat » tab of each agent page). */
+const ChatView: React.FC<{ filterTargetId?: string }> = ({ filterTargetId }) => {
+  const { theme, t, messages: allMessages, agents, isChatLoading } = useApp();
   const endRef = useRef<HTMLDivElement>(null);
+  const messages = filterTargetId ? allMessages.filter((m) => m.targetId === filterTargetId) : allMessages;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
