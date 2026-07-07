@@ -267,7 +267,8 @@ Tout ce qui précède, plus :
    apparaît sur le bureau, contenant un agent par fonction physique (Agent
    Isolation thermique, Agent Inertie thermique, Agent Mécanique, Agent
    Hygrométrie), chacun avec sa méthode conforme (ex. Fourier `q = λ·ΔT/e`).
-3. Ouvrir l'onglet **« Système »** (dans le dock, à côté de Accueil/Flux) :
+3. Ouvrir l'onglet **« Flux fonctionnel »** (dans le dock, à côté de
+   Accueil/Flux) :
    diagramme de bloc SVG — Environnement extérieur → méta-composant
    (fonctions) → Utilisateur, flux colorés (thermique, humidité, charges)
    avec légende accessible.
