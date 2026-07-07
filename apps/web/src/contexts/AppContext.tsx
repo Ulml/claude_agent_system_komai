@@ -44,7 +44,7 @@ import {
   seedWorkEvents,
 } from '@/core/seed';
 import { agentMethods } from '@/core/agent_methods';
-import { decomposeGoal, runFlowLocally } from '@/core/orchestrator';
+import { decomposeAgentSubFlow, decomposeGoal, runFlowLocally } from '@/core/orchestrator';
 import { proposeMetaNodeForScope, proposeMetaNodes } from '@/core/curator';
 import { generateText } from '@/services/llm';
 import { persistProject } from '@/services/firebase';
@@ -121,6 +121,11 @@ interface AppContextType {
   visibleTasks: TaskNode[]; // perimeter-filtered: hidden tasks become meta-tasks
   runProjectFlow: () => void;
   isFlowRunning: boolean;
+
+  // META-AGENTS — an agent detailed into a SUB-FLOW (its « Flux » tab)
+  isMetaAgent: (agentId: string) => boolean;
+  /** Details the agent into a sub-flow; false when impossible/already meta. */
+  createSubFlow: (agentId: string) => boolean;
 
   // Live work & learning
   workEvents: WorkEvent[];
@@ -472,6 +477,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [isFlowRunning, selectedProjectId, tasks]);
 
+  /* --------------------- Meta-agents (sub-flows) ----------------------- */
+
+  /** An agent is a META-AGENT once a sub-flow details it. */
+  const isMetaAgent = useCallback(
+    (agentId: string) => tasks.some((task) => task.parentAgentId === agentId),
+    [tasks]
+  );
+
+  /**
+   * Details an agent into a SUB-FLOW (the « + » button of its tab bar).
+   * The sub-tasks carry `parentAgentId` so they render only inside the
+   * meta-agent (its « Flux » tab and the expanded outline in the main
+   * PERT), and they run for real immediately — no fake placeholders.
+   */
+  const createSubFlow = useCallback(
+    (agentId: string): boolean => {
+      if (!selectedProjectId) return false;
+      if (tasks.some((task) => task.parentAgentId === agentId)) return false; // already meta
+      const agent = agents.find((a) => a.id === agentId);
+      if (!agent || agent.kind === 'human') return false;
+      const sub = decomposeAgentSubFlow(selectedProjectId, agent);
+      setTasks((prev) => [...prev, ...sub]);
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === selectedProjectId
+            ? {
+                ...p,
+                perimeters: p.perimeters.map((per) =>
+                  per.role === 'owner' ? { ...per, taskIds: [...per.taskIds, ...sub.map((s) => s.id)] } : per
+                ),
+              }
+            : p
+        )
+      );
+      runFlowLocally(sub, {
+        onTaskUpdate: (updated) => setTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task))),
+        onWorkEvent: (event) => setWorkEvents((prev) => [...prev, event]),
+        onDone: () => {},
+      });
+      return true;
+    },
+    [selectedProjectId, tasks, agents]
+  );
+
   /* ----------------------------- Meta-chat ----------------------------- */
 
   const sendMessage = useCallback(
@@ -635,6 +684,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     visibleTasks,
     runProjectFlow,
     isFlowRunning,
+    isMetaAgent,
+    createSubFlow,
     workEvents,
     learning,
     messages,

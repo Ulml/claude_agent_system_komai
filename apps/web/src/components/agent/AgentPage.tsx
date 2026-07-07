@@ -15,6 +15,7 @@ import { Markdown } from '@/components/ui/Markdown';
 import MermaidFlow from '@/components/ui/MermaidFlow';
 import MethodSection from './MethodSection';
 import ChatView from '@/components/chat/ChatView';
+import PertGraph from '@/components/flux/PertGraph';
 import type { AgentProfile } from '@/core/types';
 
 /* -------------------- derived / demo data helpers -------------------- */
@@ -121,6 +122,8 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
   } = useApp();
 
   const agentTasks = tasks.filter((task) => task.agentId === agent.id);
+  // Sub-flow detailing this agent (present = the agent is a META-AGENT).
+  const subFlowTasks = tasks.filter((task) => task.parentAgentId === agent.id);
   const agentEvents = workEvents.filter((e) => e.agentId === agent.id);
   const agentLearning = learning.filter((l) => l.agentId === agent.id);
   const provider = providers.find((p) => p.id === agent.llmBinding.providerId);
@@ -185,6 +188,20 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
           ) : (
             <EmptyDef text={t.defChat} />
           ))}
+
+        {/* 0bis — Flux (META-AGENTS only): the sub-flow detailing this agent */}
+        {agentTab === 'flow' && (
+          <div className="space-y-3">
+            {subFlowTasks.length === 0 ? (
+              <EmptyDef text={t.defFlow} />
+            ) : (
+              <>
+                <MicroLabel>{`${t.subFlowOf} ${agent.name}`}</MicroLabel>
+                <PertGraph tasks={subFlowTasks} />
+              </>
+            )}
+          </div>
+        )}
 
         {/* 1 — Entrées */}
         {agentTab === 'inputs' &&
