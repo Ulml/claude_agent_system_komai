@@ -564,8 +564,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         )
       );
       streamAndRun(model.events, model.tasks);
-      // Land on the SYSTEM diagram once the timeline has streamed.
-      setTimeout(() => setView({ kind: 'tab', tab: 'SYSTEM' }), 450 * model.events.length + 600);
+      // No auto-navigation: the user is already watching the Orchestrateur
+      // (actions open the acting agent's page); its timeline and the
+      // « Système » tab expose the diagram when the user chooses to look.
     },
     [selectedProjectId, createAgent, streamAndRun]
   );
