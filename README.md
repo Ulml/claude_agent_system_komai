@@ -149,7 +149,7 @@ template_lm/
 │               ├── layout/             # Sidebar, TopBar
 │               ├── chat/               # MetaChatDock (dock unique), ChatView
 │               ├── desktop/            # AgentDesktop, AgentTiles, FolderView
-│               ├── genesis/            # 🧬 GenesisHero (prompt + timeline live)
+│               ├── genesis/            # 🧬 GenesisTimeline (narration live, onglet Travail en direct de l'Orchestrateur)
 │               ├── system/             # 🏗️ SystemView (diagramme de bloc MBSE en SVG)
 │               ├── agent/              # AgentPage (7 onglets), MethodSection
 │               ├── flux/               # FluxView (DAG de tâches, rangs, ∥ parallèle)
@@ -225,9 +225,10 @@ Harnais d'agents Python : voir `packages/agent_harness/README.md`.
    regroupés en dossiers/sous-dossiers).
 2. Créer un nouveau projet (bouton dans la barre latérale) → atterrit sur
    Accueil, flux vide, agents par défaut seulement.
-3. Ouvrir un agent (ex. un simulateur de propulsion) → onglet *Présentation*
-   pour voir son descriptif de calcul conforme (graphe I/O, formules, sources
-   SOTA, cas connus vérifiés).
+3. Ouvrir un agent (ex. un simulateur de propulsion) → l'onglet *Chat*
+   (premier onglet, par défaut) porte sa conversation ; l'onglet
+   *Présentation* montre son descriptif de calcul conforme (graphe I/O,
+   formules, sources SOTA, cas connus vérifiés).
 4. Parler au Curateur dans le méta-chat (« propose des regroupements ») →
    ses propositions de méta-nœuds apparaissent dans son propre onglet
    *Travail en direct* (Valider crée le dossier, Refuser abandonne).
@@ -239,26 +240,29 @@ Harnais d'agents Python : voir `packages/agent_harness/README.md`.
 
 Tout ce qui précède, plus :
 
-1. Sur l'accueil, taper une demande **quelconque** dans le prompt central
-   « Que voulez-vous accomplir ? » (ex. « Étudie la faisabilité juridique et
-   financière d'un lancement produit santé connecté ») et cliquer *Lancer*.
-2. Observer la timeline Génésis en direct : détection des domaines requis,
-   création des agents « Spécialiste {Domaine} » manquants (chacun publié
-   avec un descriptif de calcul conforme), conception du flux (recherches en
-   parallèle → analyse croisée → synthèse → revue du juge).
+1. Taper une demande **quelconque** dans le méta-chat depuis l'accueil
+   (ex. « Étudie la faisabilité juridique et financière d'un lancement
+   produit santé connecté ») : c'est une action d'orchestration — l'app
+   ouvre la page de l'**Orchestrateur** sur son onglet *Chat*.
+2. Observer la timeline Génésis dans son onglet *Travail en direct* :
+   détection des domaines requis, création des agents « Spécialiste
+   {Domaine} » manquants (chacun publié avec un descriptif de calcul
+   conforme), conception du flux — recherches web (contexte/environnement +
+   spécifications types quand aucun PRD n'est fourni) et dossiers
+   spécialistes en parallèle → analyse croisée → livrable → revue du juge.
 3. Les agents créés se matérialisent dans un dossier « Équipe Génésis » sur
    le bureau ; cliquer un événement de la timeline ouvre directement l'agent
    ou l'onglet Flux.
-4. Le même déclenchement fonctionne en parlant à l'Orchestrateur dans le
-   méta-chat (nouvel objectif, ou « crée un agent expert en … »).
+4. Le même déclenchement fonctionne depuis la page de l'Orchestrateur
+   (nouvel objectif, ou « crée un agent expert en … »).
 
 ### Sur `claude/mbse-system-flows` (+ MBSE)
 
 Tout ce qui précède, plus :
 
-1. Décrire un **objet physique** au prompt Génésis ou à l'Orchestrateur,
-   par ex. : « Construire une maison en briques de terre crue, de l'idée à
-   la remise des clés ».
+1. Décrire un **objet physique** dans le méta-chat (accueil ou page de
+   l'Orchestrateur), par ex. : « Construire une maison en briques de terre
+   crue, de l'idée à la remise des clés ».
 2. L'app bascule sur le pipeline MBSE : un dossier « Brique terre crue »
    apparaît sur le bureau, contenant un agent par fonction physique (Agent
    Isolation thermique, Agent Inertie thermique, Agent Mécanique, Agent
@@ -267,10 +271,10 @@ Tout ce qui précède, plus :
    diagramme de bloc SVG — Environnement extérieur → méta-composant
    (fonctions) → Utilisateur, flux colorés (thermique, humidité, charges)
    avec légende accessible.
-4. Onglet **Flux** : le flux de tâches de construction (esquisse →
-   dimensionnements en parallèle → construction → remise des clés →
-   utilisation) est visible ; ouvrir une tâche affiche ses chips
-   « Réalise les fonctions » vers les agents-fonctions concernés.
+4. Onglet **Flux** : le flux de tâches de construction (recherches web →
+   spécification → esquisse → dimensionnements en parallèle → construction →
+   remise des clés → utilisation) est visible ; ouvrir une tâche affiche ses
+   chips « Réalise les fonctions » vers les agents-fonctions concernés.
 5. Dire « **Raffine** le diagramme » (ou « raffine » tout court) à
    l'Orchestrateur une fois le flux terminé → itération 2 : le diagramme se
    densifie (Agent Acoustique, Étanchéité à l'air), de nouveaux flux
