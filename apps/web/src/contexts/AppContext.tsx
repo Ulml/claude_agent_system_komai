@@ -174,8 +174,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [theme, setTheme] = useState<ThemeColor>(defaultTheme);
   // The signed-in user. 'user-owner' is the owner and sees everything.
   const [currentUserId, setCurrentUserId] = useState('user-owner');
-  const [view, setView] = useState<View>({ kind: 'tab', tab: 'HOME' });
-  const [agentTab, setAgentTab] = useState<AgentTabId>('chat');
+  const [view, setViewRaw] = useState<View>({ kind: 'tab', tab: 'HOME' });
+  // Navigation history for the top-left back arrow — works on EVERY view
+  // (Flux, Système, agent pages…), returning to wherever the user was.
+  const viewHistoryRef = useRef<View[]>([]);
+  const setView = useCallback((v: View) => {
+    setViewRaw((prev) => {
+      if (JSON.stringify(prev) !== JSON.stringify(v)) {
+        viewHistoryRef.current = [...viewHistoryRef.current, prev].slice(-50);
+      }
+      return v;
+    });
+  }, []);
+  const [agentTab, setAgentTab] = useState<AgentTabId>('results');
   const [logsFilter, setLogsFilter] = useState<'all' | 'user' | 'judge' | 'learning'>('all');
   const [agentTitleHidden, setAgentTitleHidden] = useState(false);
 
@@ -208,10 +219,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // The chat is contextual: it addresses the open agent, else the system LLM.
   const chatTarget = view.kind === 'agent' ? view.agentId : 'system-llm';
 
-  // Opening a new agent resets its tabs to « Chat » (default view: every
-  // agent's conversation is the first tab of its page).
+  // Opening a new agent shows its « Résultats » tab by default (the chat
+  // stays the leftmost tab, but results is what the user wants to see first).
   useEffect(() => {
-    if (view.kind === 'agent') setAgentTab('chat');
+    if (view.kind === 'agent') setAgentTab('results');
   }, [view.kind === 'agent' ? view.agentId : null]);
 
   // Once the open agent starts a run, auto-switch to « Travail en direct ».
@@ -295,19 +306,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   /* --------------------- Back navigation (top-left arrow) -------------- */
 
-  const canGoBack = view.kind === 'agent' || openFolderId !== null;
+  // The back arrow shows whenever we are not on the bare Home desktop.
+  const canGoBack =
+    openFolderId !== null ||
+    view.kind === 'agent' ||
+    (view.kind === 'tab' && view.tab !== 'HOME') ||
+    viewHistoryRef.current.length > 0;
   const goBack = useCallback(() => {
-    // From an agent → back to the home desktop (the folder it was opened
-    // from, if any, is still active). From a folder → to its parent / root.
-    if (view.kind === 'agent') {
-      setView({ kind: 'tab', tab: 'HOME' });
-      return;
-    }
+    // Inside a folder → climb to its parent / desktop root first.
     if (openFolderId) {
       const current = folders.find((f) => f.id === openFolderId);
       setOpenFolderId(current?.parentId ?? null);
+      return;
     }
-  }, [view, openFolderId, folders]);
+    // Otherwise pop the navigation history (works on Flux / Système / agents).
+    const hist = viewHistoryRef.current;
+    if (hist.length > 0) {
+      const prev = hist[hist.length - 1];
+      viewHistoryRef.current = hist.slice(0, -1);
+      setViewRaw(prev);
+      return;
+    }
+    setViewRaw({ kind: 'tab', tab: 'HOME' });
+  }, [openFolderId, folders]);
 
   /* -------------------------- Multi-user access ----------------------- */
 
