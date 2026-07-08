@@ -358,8 +358,19 @@ export type View =
   | { kind: 'agent'; agentId: string };
 
 /** The contextual tabs of an agent page, in display order (Chat first).
- *  'flow' only exists on META-AGENTS: agents detailed into a sub-flow. */
-export type AgentTabId = 'chat' | 'flow' | 'inputs' | 'work' | 'conformity' | 'learning' | 'skills' | 'logs' | 'readme';
+ *  'results' is the DEFAULT tab shown when opening an agent; 'flow' only
+ *  exists on META-AGENTS: agents detailed into a sub-flow. */
+export type AgentTabId =
+  | 'chat'
+  | 'results'
+  | 'flow'
+  | 'inputs'
+  | 'work'
+  | 'conformity'
+  | 'learning'
+  | 'skills'
+  | 'logs'
+  | 'readme';
 
 /** One point of an agent's end-of-run conformity score history. */
 export interface ConformityPoint {

@@ -24,6 +24,7 @@ const HOME_TABS: { id: MainTab; labelKey: string }[] = [
 
 const AGENT_TABS: { id: AgentTabId; labelKey: string }[] = [
   { id: 'chat', labelKey: 'tabChat' },
+  { id: 'results', labelKey: 'tabResults' },
   { id: 'flow', labelKey: 'tabFlow' }, // meta-agents only (filtered below)
   { id: 'inputs', labelKey: 'tabInputs' },
   { id: 'work', labelKey: 'tabWork' },
