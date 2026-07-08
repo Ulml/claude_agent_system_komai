@@ -107,7 +107,7 @@ const TaskDetail: React.FC<{ task: TaskNode }> = ({ task }) => {
 };
 
 const FluxView: React.FC = () => {
-  const { theme, t, visibleTasks, tasks, selectedProjectId, runProjectFlow, isFlowRunning } = useApp();
+  const { theme, t, visibleTasks, tasks, selectedProjectId, runProjectFlow, isFlowRunning, setView } = useApp();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -162,6 +162,7 @@ const FluxView: React.FC = () => {
         }
         expandedIds={expandedIds}
         subFlowOf={subFlowOf}
+        onOpenAgent={(agentId) => setView({ kind: 'agent', agentId })}
       />
 
       {/* Selected task detail below the graph */}

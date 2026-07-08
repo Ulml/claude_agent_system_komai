@@ -74,10 +74,10 @@ const DOMAINS: DomainTemplate[] = [
   { label: 'Chimie', keywords: /chimi|molécul|réactif|batterie|matériau/i, icon: FlaskConical, skills: ['Cinétique chimique', 'Matériaux'], providerId: 'google', model: 'gemini-3-pro-preview' },
   { label: 'Santé', keywords: /sant[eé]|médic|clinique|patient|biolog/i, icon: Stethoscope, skills: ['Revue clinique', 'Biostatistique'], providerId: 'anthropic', model: 'claude-sonnet-5' },
   { label: 'Juridique', keywords: /juridiq|droit|légal|rgpd|contrat|conformité réglementaire/i, icon: Landmark, skills: ['Veille réglementaire', 'Analyse de contrats'], providerId: 'anthropic', model: 'claude-sonnet-5' },
-  { label: 'Logiciel', keywords: /logiciel|code|app(li)?|api|architecture|développ/i, icon: Cpu, skills: ['Architecture logicielle', 'Revue de code'], providerId: 'local-lmlite', model: 'qwen3-coder' },
+  { label: 'Logiciel', keywords: /logiciel|code|app(li)?|api|architecture|développ/i, icon: Cpu, skills: ['Architecture logicielle', 'Revue de code'], providerId: 'anthropic', model: 'claude-sonnet-5' },
   { label: 'Énergie', keywords: /climat|énergie|carbone|solaire|éolien|réseau électrique/i, icon: Leaf, skills: ['Bilan carbone', 'Mix énergétique'], providerId: 'google', model: 'gemini-3-flash-preview' },
   { label: 'Marketing', keywords: /marketing|vente|campagne|marque|acquisition|seo/i, icon: Megaphone, skills: ['Positionnement', 'Funnel AARRR'], providerId: 'openai', model: 'gpt-5-mini' },
-  { label: 'Design', keywords: /design|ux|ui|maquette|ergonomie/i, icon: Palette, skills: ['Design systems', 'Tests utilisateurs'], providerId: 'local-lmlite', model: 'llama-4-scout' },
+  { label: 'Design', keywords: /design|ux|ui|maquette|ergonomie/i, icon: Palette, skills: ['Design systems', 'Tests utilisateurs'], providerId: 'google', model: 'gemini-3-pro-preview' },
 ];
 
 /** Generic fallback: any long-enough content word becomes a domain. */

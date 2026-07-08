@@ -17,21 +17,44 @@ import MethodSection from './MethodSection';
 import GenesisTimeline from '@/components/genesis/GenesisTimeline';
 import ChatView from '@/components/chat/ChatView';
 import PertGraph from '@/components/flux/PertGraph';
-import type { AgentProfile } from '@/core/types';
+import type { AgentProfile, TaskNode } from '@/core/types';
 
 /* -------------------- derived / demo data helpers -------------------- */
 
-/** Deterministic end-of-run conformity history for the agent's demo task. */
-function conformityHistory(agentId: string): { label: string; score: number; trigger: 'learning' | 'user' }[] {
-  let seed = [...agentId].reduce((a, c) => a + c.charCodeAt(0), 0);
-  const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-  const points: { label: string; score: number; trigger: 'learning' | 'user' }[] = [];
-  let score = 58 + Math.floor(rnd() * 10);
-  for (let i = 0; i < 5; i++) {
-    score = Math.min(97, score + 6 + Math.floor(rnd() * 7));
-    points.push({ label: `Run ${i + 1}`, score, trigger: i % 2 === 0 ? 'learning' : 'user' });
+const short = (s: string, n = 14) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/** The real markdown document a completed task produced — synthesized from
+ *  its contract, input, output and conformity report (never hard-coded). */
+function buildTaskDocument(task: TaskNode, agentName: string): string {
+  const lines = [
+    `# ${task.spec.deliverableFormat}`,
+    '',
+    `> ${agentName} — tâche « ${task.title} »`,
+    '',
+    '## Objectif',
+    task.spec.objective,
+    '',
+    '## Contraintes',
+    ...task.spec.constraints.map((c) => `- ${c}`),
+    '',
+    '## Entrée',
+    task.input,
+    '',
+    '## Résultat',
+    task.output?.summary ?? '(en cours)',
+  ];
+  if (task.output) {
+    lines.push('', `_Artefacts : ${task.output.artifacts.join(', ')} · ${task.output.tokensUsed.toLocaleString()} tokens_`);
   }
-  return points;
+  if (task.conformity && task.conformity.verdict !== 'pending') {
+    lines.push(
+      '',
+      '## Conformité',
+      `Verdict : ${task.conformity.verdict} — score ${task.conformity.score}/100 (juge ${task.conformity.judgeModel})`,
+      ...task.conformity.criteria.map((c) => `- ${c.passed ? '✔' : '✘'} ${c.name} — ${c.comment}`)
+    );
+  }
+  return lines.join('\n');
 }
 
 function downloadFile(filename: string, content: string) {
@@ -108,6 +131,7 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
     theme,
     t,
     tasks,
+    agents,
     workEvents,
     learning,
     providers,
@@ -126,6 +150,12 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
   const agentTasks = tasks.filter((task) => task.agentId === agent.id);
   // Sub-flow detailing this agent (present = the agent is a META-AGENT).
   const subFlowTasks = tasks.filter((task) => task.parentAgentId === agent.id);
+
+  // Results = documents produced by this agent AND agents of the SAME TYPE,
+  // in chronological order (the array order = order of appearance in flows).
+  const sameKindIds = new Set(agents.filter((a) => a.kind === agent.kind).map((a) => a.id));
+  const producedTasks = tasks.filter((task) => sameKindIds.has(task.agentId) && task.status === 'done' && task.output);
+  const agentName = (id: string) => agents.find((a) => a.id === id)?.name ?? agent.name;
   const agentEvents = workEvents.filter((e) => e.agentId === agent.id);
   const agentLearning = learning.filter((l) => l.agentId === agent.id);
   const provider = providers.find((p) => p.id === agent.llmBinding.providerId);
@@ -160,7 +190,15 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
   const allLogs = [...userRemarks, ...judgeLogs, ...learnLogs].sort((a, b) => b.ts - a.ts);
   const logs = logsFilter === 'all' ? allLogs : allLogs.filter((l) => l.category === logsFilter);
 
-  const history = conformityHistory(agent.id);
+  // The conformity curve reflects the REAL end-of-run scores of the produced
+  // tasks (same-type agents), so it matches the values shown in the flow.
+  const history = producedTasks
+    .filter((task) => task.conformity && task.conformity.verdict !== 'pending')
+    .map((task, i) => ({
+      label: short(task.title),
+      score: task.conformity!.score,
+      trigger: (i % 2 === 0 ? 'learning' : 'user') as 'learning' | 'user',
+    }));
 
   return (
     <section aria-label={agent.name} className="w-full max-w-3xl mx-auto px-4 py-6 space-y-6 animate-fade-up">
@@ -191,7 +229,49 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
             <EmptyDef text={t.defChat} />
           ))}
 
-        {/* 0bis — Flux (META-AGENTS only): the sub-flow detailing this agent */}
+        {/* 0bis — Résultats (DEFAULT): documents produced by this agent and
+            agents of the same type, chronological, viewable + downloadable */}
+        {agentTab === 'results' && (
+          <div className="space-y-5">
+            {producedTasks.length === 0 ? (
+              <EmptyDef text={t.resultsEmpty} />
+            ) : (
+              <>
+                <MicroLabel>{t.resultsHistory}</MicroLabel>
+                {producedTasks.map((task) => {
+                  const filename = task.output!.artifacts[0] ?? `${task.id}.md`;
+                  const doc = buildTaskDocument(task, agentName(task.agentId));
+                  return (
+                    <div key={task.id} className={`space-y-2 pb-5 border-b ${theme.glassBorder} last:border-0`}>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <h3 className={`text-sm font-semibold ${theme.primaryText}`}>{task.title}</h3>
+                        {task.conformity && task.conformity.verdict !== 'pending' && (
+                          <span className={`text-xs font-bold ${theme.primaryText}`}>
+                            {t.score} {task.conformity.score}/100
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-xs ${theme.mutedText}`}>
+                        {t.resultsBy} {agentName(task.agentId)}
+                      </p>
+                      <div className={`rounded-2xl p-4 ${theme.iconBg}`}>
+                        <Markdown source={doc} />
+                      </div>
+                      <button
+                        onClick={() => downloadFile(filename, doc)}
+                        className={`flex items-center gap-2 px-4 min-h-[40px] rounded-full text-xs font-bold uppercase tracking-wider ${theme.userBubble}`}
+                      >
+                        <Download size={14} aria-hidden /> {t.download} · {filename}
+                      </button>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* 0ter — Flux (META-AGENTS only): the sub-flow detailing this agent */}
         {agentTab === 'flow' && (
           <div className="space-y-3">
             {subFlowTasks.length === 0 ? (
@@ -318,11 +398,13 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
         {/* 3 — Conformité (latest report + score-evolution curve) */}
         {agentTab === 'conformity' && (
           <div className="space-y-5">
-            <div>
-              <MicroLabel className="mb-1">{t.conformityCurve}</MicroLabel>
-              <p className={`text-xs mb-2 ${theme.mutedText}`}>{t.runTarget}</p>
-              <ScoreCurve points={history} />
-            </div>
+            {history.length > 0 && (
+              <div>
+                <MicroLabel className="mb-1">{t.conformityCurve}</MicroLabel>
+                <p className={`text-xs mb-2 ${theme.mutedText}`}>{t.runTarget}</p>
+                <ScoreCurve points={history} />
+              </div>
+            )}
             {agentTasks.filter((task) => task.conformity && task.conformity.criteria.length > 0).length === 0 ? (
               <EmptyDef text={t.defConformity} />
             ) : (

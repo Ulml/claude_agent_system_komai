@@ -146,6 +146,8 @@ interface PertGraphProps {
   expandedIds?: Set<string>;
   /** Sub-flow of a meta-agent (empty/undefined = not a meta-agent). */
   subFlowOf?: (agentId: string) => TaskNode[];
+  /** Double-click on a NON-meta node opens that agent (its Results tab). */
+  onOpenAgent?: (agentId: string) => void;
 }
 
 const PertGraph: React.FC<PertGraphProps> = ({
@@ -155,6 +157,7 @@ const PertGraph: React.FC<PertGraphProps> = ({
   onToggleExpand,
   expandedIds,
   subFlowOf,
+  onOpenAgent,
 }) => {
   const { theme, t, agents } = useApp();
   const isMeta = (agentId: string) => (subFlowOf?.(agentId)?.length ?? 0) > 0;
@@ -206,7 +209,7 @@ const PertGraph: React.FC<PertGraphProps> = ({
       <g
         key={n.task.id}
         onClick={() => !hidden && onSelect?.(n.task.id)}
-        onDoubleClick={() => meta && onToggleExpand?.(n.task.id)}
+        onDoubleClick={() => (meta ? onToggleExpand?.(n.task.id) : !hidden && onOpenAgent?.(n.task.agentId))}
         style={{ cursor: hidden ? 'default' : 'pointer' }}
         role="button"
         aria-label={hidden ? t.metaTask : n.task.title}
