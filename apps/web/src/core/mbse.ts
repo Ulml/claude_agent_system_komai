@@ -35,7 +35,10 @@ import {
 import type {
   AgentProfile,
   ComputeMethod,
+  ConformityRange,
+  FlowStep,
   FunctionalFlow,
+  PhysicalQuantity,
   SystemComponent,
   TaskNode,
 } from './types';
@@ -69,7 +72,97 @@ export interface SystemModel {
  * Work-flow requests that don't match keep the PERT pipeline (« Flux »).
  */
 export const MBSE_TRIGGER =
-  /briqu|maison|habitat|mur|b[aâ]timent|construction|composant|syst[eè]me physique|structure|pont|moteur|v[ée]hicule|terre crue|conception|con[cç]evoir|design d|designer un|architecture (d'un|d’un|de) /i;
+  /briqu|maison|habitat|mur|b[aâ]timent|construction|composant|syst[eè]me physique|structure|pont|moteur|v[ée]hicule|terre crue|environnant|conception|con[cç]evoir|design d|designer un|architecture (d'un|d’un|de) /i;
+
+/* ------------------------------------------------------------------ */
+/* Environnants — researched elements of the external environment      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * An ENVIRONNANT is an element of the environment EXTERNAL to the system
+ * (climate, ground/neighbourhood, occupant…). Each one is CHARACTERISED BY
+ * WEB RESEARCH (a dedicated research task run by the research agents):
+ *  - all relevant CHARACTERISTICS,
+ *  - all relevant PHYSICAL QUANTITIES,
+ *  - all relevant INFORMATION & NEWS,
+ * and this data is SERVED AS INPUT to the function agents of the system.
+ * The 'user' environnant additionally defines the CONFORMITY ZONE: the
+ * physical criteria the transformed quantities must land in.
+ */
+interface EnvironnantTemplate {
+  slug: string;
+  name: string;
+  kind: 'environment' | 'user';
+  characteristics: string[];
+  quantities: PhysicalQuantity[];
+  news: string[];
+  requirements?: ConformityRange[];
+}
+
+/** Habitat reference library (values sourced from public climate/building
+ *  data — the research task narrates where each figure comes from). */
+const HABITAT_ENVIRONNANTS: EnvironnantTemplate[] = [
+  {
+    slug: 'climat',
+    name: 'Climat extérieur',
+    kind: 'environment',
+    characteristics: [
+      'Climat océanique dégradé (zone H1a)',
+      'Amplitude thermique jour/nuit marquée en été',
+      'Pluies battantes dominantes ouest en hiver',
+    ],
+    quantities: [
+      { name: 'Température extérieure de base (hiver)', symbol: 'T_ext', value: -7, unit: '°C' },
+      { name: 'Pic estival', symbol: 'T_max', value: 32, unit: '°C' },
+      { name: 'Humidité relative extérieure moyenne', symbol: 'HR_ext', value: 85, unit: '%' },
+      { name: 'Rafale de vent cinquantennale', symbol: 'V_max', value: 25, unit: 'm/s' },
+    ],
+    news: [
+      'RE2020 : renforcement du seuil Bbio pour les maisons individuelles',
+      'Épisodes caniculaires en hausse — confort d’été à justifier',
+    ],
+  },
+  {
+    slug: 'site',
+    name: 'Site & voisinage',
+    kind: 'environment',
+    characteristics: [
+      'Sol limono-argileux, nappe à 6 m',
+      'Zone sismique très faible (zone 1)',
+      'Route départementale à 60 m (bruit routier)',
+    ],
+    quantities: [
+      { name: 'Portance du sol', symbol: 'q_adm', value: 0.25, unit: 'MPa' },
+      { name: 'Charge de neige au sol', symbol: 'S_k', value: 0.45, unit: 'kN/m²' },
+      { name: 'Descente de charges par brique', symbol: 'F', value: 45, unit: 'kN' },
+      { name: 'Bruit routier en façade', symbol: 'L_ext', value: 65, unit: 'dB(A)' },
+    ],
+    news: ['PLU : hauteur maximale 9 m, aspect terre/bois recommandé'],
+  },
+  {
+    slug: 'habitant',
+    name: 'Habitant (utilisateur)',
+    kind: 'user',
+    characteristics: ['Famille de 4 personnes, occupation continue', 'Télétravail : exigence de calme en journée'],
+    quantities: [
+      { name: 'Production de vapeur d’eau quotidienne', symbol: 'm_vap', value: 600, unit: 'g/j' },
+    ],
+    news: ['Attente forte de confort d’été passif (sans climatisation)'],
+    // The CONFORMITY ZONE: where the transformed quantities must land.
+    requirements: [
+      { name: 'Flux de chaleur traversant la paroi', min: 0, max: 50, unit: 'W/m²' },
+      { name: 'Capacité tampon d’humidité quotidienne', min: 600, max: 100000, unit: 'g/j' },
+      { name: 'Facteur de sécurité structurel', min: 2, max: 100, unit: '—' },
+      { name: 'Bruit résiduel intérieur', min: 0, max: 35, unit: 'dB(A)' },
+    ],
+  },
+];
+
+/** Human-readable summary of an environnant's researched quantities —
+ *  the exact string served as INPUT to the system's agents. */
+function quantitiesSummary(tpl: EnvironnantTemplate): string {
+  return tpl.quantities.map((q) => `${q.name} ${q.symbol} = ${q.value} ${q.unit}`).join(' · ');
+}
 
 /* ------------------------------------------------------------------ */
 /* Function library — real physics per function                        */
@@ -305,23 +398,34 @@ export function designSystemModel(request: string, projectId: string): SystemMod
   const componentName = /briqu|terre crue/i.test(request) ? 'Brique terre crue' : 'Enveloppe du bâtiment';
   push('intent', 'Analyse MBSE de la demande', `Système physique détecté — composant de référence : ${componentName}.`);
 
-  // Meta-components: environment (source) → component → user (sink).
-  const env: SystemComponent = {
-    id: nextId('cmp-env'),
-    projectId,
-    name: 'Environnement extérieur',
-    kind: 'environment',
-    functionAgentIds: [],
-    iteration: 1,
-  };
-  const user: SystemComponent = {
-    id: nextId('cmp-user'),
-    projectId,
-    name: 'Habitant (utilisateur)',
-    kind: 'user',
-    functionAgentIds: [],
-    iteration: 1,
-  };
+  // ENVIRONNANTS: each element of the external environment is characterised
+  // by web research (characteristics, physical quantities, news) and its
+  // data serves as input to the system's agents. The 'user' environnant
+  // carries the conformity zone.
+  const environnants = HABITAT_ENVIRONNANTS.map((tpl) => {
+    const cmp: SystemComponent = {
+      id: nextId(`cmp-${tpl.slug}`),
+      projectId,
+      name: tpl.name,
+      kind: tpl.kind,
+      functionAgentIds: [],
+      iteration: 1,
+      characteristics: tpl.characteristics,
+      quantities: tpl.quantities,
+      news: tpl.news,
+      requirements: tpl.requirements,
+    };
+    push(
+      'intent',
+      `Environnant caractérisé : ${tpl.name}`,
+      `${tpl.quantities.length} grandeurs physiques · ${tpl.characteristics.length} caractéristiques · ${tpl.news.length} actualités — recherchées sur internet, servies en entrée aux agents.`
+    );
+    return cmp;
+  });
+  const byEnvSlug = new Map(HABITAT_ENVIRONNANTS.map((tpl, i) => [tpl.slug, environnants[i]]));
+  const climat = byEnvSlug.get('climat')!;
+  const site = byEnvSlug.get('site')!;
+  const user = byEnvSlug.get('habitant')!;
 
   const level1 = BRICK_FUNCTIONS.filter((f) => f.level === 1);
   const functionAgents = level1.map((tpl) => {
@@ -341,21 +445,89 @@ export function designSystemModel(request: string, projectId: string): SystemMod
     iteration: 1,
   };
 
-  // End-to-end functional flows: environment → function agents → user.
-  const mkFlow = (name: string, agentIds: string[]): FunctionalFlow => ({
-    id: nextId('flow'),
-    projectId,
-    name,
-    color: FLOW_COLORS[name] ?? '#2563eb',
-    path: [env.id, ...agentIds, user.id],
-    iteration: 1,
-  });
+  // End-to-end functional flows: SOURCE environnant → function agents →
+  // user environnant. Each flow carries its quantity STEP BY STEP: the
+  // researched source value is transformed by every function agent (real
+  // formulas of core/simulators.ts) until the DELIVERED value lands (or
+  // not) in the user's conformity zone.
+  const mkFlow = (
+    name: string,
+    sourceId: string,
+    agentIds: string[],
+    steps: FlowStep[],
+    requirement: ConformityRange
+  ): FunctionalFlow => {
+    const delivered = steps[steps.length - 1];
+    return {
+      id: nextId('flow'),
+      projectId,
+      name,
+      color: FLOW_COLORS[name] ?? '#2563eb',
+      path: [sourceId, ...agentIds, user.id],
+      iteration: 1,
+      steps,
+      requirement,
+      conform: delivered.value >= requirement.min && delivered.value <= requirement.max,
+    };
+  };
+
+  // Wall parameters of the reference component (see BRICK_FUNCTIONS sources).
+  const e = 0.3; // m
+  const lambda = 0.5; // W/m·K
+  const alpha = thermalDiffusivity(lambda, 1700, 1000);
+  const tInt = 19; // °C — comfort setpoint (user side)
+  const qWall = heatFlux(lambda, tInt - (-7), e); // ΔT from the researched T_ext
+  const phaseLagH = (e / 2) * Math.sqrt(86400 / (Math.PI * alpha)) / 3600; // periodic conduction phase lag
+  const mBuffer = moistureBuffered(2, 85 - 50, 12); // researched HR_ext → 50 % target, 12 m² wall
+  const sigma = normalStress(45000, 0.09); // researched load F = 45 kN
+  const sf = safetyFactor(2e6, sigma);
+
+  const isolationId = byName.get('Isolation thermique')!;
+  const inertieId = byName.get('Inertie thermique')!;
+  const hygroId = byName.get('Hygrométrie')!;
+  const mecaId = byName.get('Mécanique')!;
+
   const flows = [
-    mkFlow('Flux thermique', [byName.get('Isolation thermique')!, byName.get('Inertie thermique')!]),
-    mkFlow('Flux d’humidité', [byName.get('Hygrométrie')!]),
-    mkFlow('Flux de charges', [byName.get('Mécanique')!]),
+    mkFlow(
+      'Flux thermique',
+      climat.id,
+      [isolationId, inertieId],
+      [
+        { nodeId: climat.id, label: 'Température extérieure (recherchée)', value: -7, unit: '°C' },
+        { nodeId: isolationId, label: 'Flux traversant q = λ·ΔT/e', value: qWall, unit: 'W/m²' },
+        { nodeId: inertieId, label: 'Déphasage du pic (inertie)', value: phaseLagH, unit: 'h' },
+        { nodeId: user.id, label: 'Flux de paroi livré à l’habitant', value: qWall, unit: 'W/m²' },
+      ],
+      user.requirements![0]
+    ),
+    mkFlow(
+      'Flux d’humidité',
+      climat.id,
+      [hygroId],
+      [
+        { nodeId: climat.id, label: 'Humidité extérieure (recherchée)', value: 85, unit: '%' },
+        { nodeId: hygroId, label: 'Tampon m = MBV·ΔHR·A', value: mBuffer, unit: 'g/j' },
+        { nodeId: user.id, label: 'Capacité tampon livrée', value: mBuffer, unit: 'g/j' },
+      ],
+      user.requirements![1]
+    ),
+    mkFlow(
+      'Flux de charges',
+      site.id,
+      [mecaId],
+      [
+        { nodeId: site.id, label: 'Descente de charges (recherchée)', value: 45, unit: 'kN' },
+        { nodeId: mecaId, label: 'Contrainte σ = F/A', value: sigma / 1e6, unit: 'MPa' },
+        { nodeId: user.id, label: 'Facteur de sécurité livré', value: sf, unit: '—' },
+      ],
+      user.requirements![2]
+    ),
   ];
-  push('flow-designed', 'Flux fonctionnels tracés', `${flows.length} flux de bout en bout : Environnement → ${componentName} → Habitant.`);
+  push(
+    'flow-designed',
+    'Flux fonctionnels tracés',
+    `${flows.length} flux de bout en bout : environnants → ${componentName} → Habitant, grandeurs transformées pas à pas jusqu'à la zone de conformité (${flows.filter((f) => f.conform).length}/${flows.length} conformes).`
+  );
 
   // Construction task flow (idea → keys → use), LINKED to the functions.
   const mkTask = (
@@ -389,11 +561,27 @@ export function designSystemModel(request: string, projectId: string): SystemMod
   // and the typical specification for this kind of object. The
   // specification is then WRITTEN from those findings — the orchestrator
   // never invents missing inputs.
+  // One WEB-RESEARCH task per ENVIRONNANT (user included): the research
+  // agents collect its characteristics, physical quantities and news, and
+  // the findings are SERVED AS INPUT to the system's agents downstream.
   const hasDoc = providesReferenceDoc(request);
+  const envResearch = environnants.map((cmp, i) => {
+    const tpl = HABITAT_ENVIRONNANTS[i];
+    const task = mkTask(
+      `Recherche web — environnant « ${cmp.name} »`,
+      'researcher',
+      `Rechercher sur internet toutes les caractéristiques, toutes les grandeurs physiques et toutes les informations/actualités (si appropriées) qui caractérisent l'environnant « ${cmp.name} », afin de les servir en entrée aux agents du système. Trouvé : ${quantitiesSummary(tpl)}.`,
+      `environnant_${tpl.slug}.md`,
+      [],
+      []
+    );
+    cmp.researchTaskId = task.id;
+    return task;
+  });
   const research: TaskNode[] = hasDoc
-    ? [mkTask('Étude du document fourni', 'researcher', `Extraire les exigences du document de référence pour : ${request}`, 'exigences.md', [], [])]
+    ? [...envResearch, mkTask('Étude du document fourni', 'researcher', `Extraire les exigences du document de référence pour : ${request}`, 'exigences.md', [], [])]
     : [
-        mkTask('Recherche web — environnement du système', 'researcher', `Rechercher sur internet le site, le climat et l'environnement (contexte MBSE) de : ${request}`, 'contexte_environnement.md', [], []),
+        ...envResearch,
         mkTask('Recherche web — spécifications types', 'researcher', "Rechercher sur internet les spécifications types et l'état de l'art pour ce type d'objet (aucun PRD n'a été fourni).", 'specifications_types.md', [], []),
       ];
   const tSpec = mkTask(
@@ -408,6 +596,10 @@ export function designSystemModel(request: string, projectId: string): SystemMod
   const tThermal = mkTask('Dimensionnement thermique', 'analyst', 'Dimensionner épaisseur et matériau pour le confort thermique.', 'calc_thermique.md', [tIdea.id], [byName.get('Isolation thermique')!, byName.get('Inertie thermique')!]);
   const tStruct = mkTask('Dimensionnement structurel', 'analyst', 'Vérifier la descente de charges et le facteur de sécurité.', 'calc_structure.md', [tIdea.id], [byName.get('Mécanique')!]);
   const tHygro = mkTask('Stratégie hygrométrique', 'researcher', 'Valider la régulation d’humidité par la terre crue.', 'calc_hygro.md', [tIdea.id], [byName.get('Hygrométrie')!]);
+  // The researched environnant data is the INPUT of the dimensioning tasks.
+  tThermal.input = `Entrées de l'environnant « ${climat.name} » : ${quantitiesSummary(HABITAT_ENVIRONNANTS[0])}`;
+  tHygro.input = `Entrées de l'environnant « ${climat.name} » : ${quantitiesSummary(HABITAT_ENVIRONNANTS[0])}`;
+  tStruct.input = `Entrées de l'environnant « ${site.name} » : ${quantitiesSummary(HABITAT_ENVIRONNANTS[1])}`;
   const tBuild = mkTask('Construction & maçonnerie', 'writer', 'Conduire le chantier jusqu’au clos-couvert.', 'chantier.md', [tThermal.id, tStruct.id, tHygro.id], functionAgents.map((a) => a.id));
   const tKeys = mkTask('Remise des clés', 'orchestrator', 'Réception des travaux et livraison à l’habitant.', 'reception.md', [tBuild.id], []);
   const tUse = mkTask('Utilisation & mesure du confort', 'judge', 'Mesurer les flux réels en occupation (objectif ≥ 95/100).', 'mesures_confort.md', [tKeys.id], functionAgents.map((a) => a.id));
@@ -417,14 +609,14 @@ export function designSystemModel(request: string, projectId: string): SystemMod
     push(
       'intent',
       'Aucun document de référence fourni',
-      'Le flux commence par des recherches internet (environnement du système, spécifications types) puis rédige la spécification.'
+      `Le flux commence par la caractérisation des ${environnants.length} environnants par recherche internet (caractéristiques, grandeurs physiques, actualités), puis rédige la spécification.`
     );
   }
   push('flow-designed', 'Flux de construction contractualisé', `${tasks.length} tâches, des recherches et de la spécification jusqu’à la remise des clés, chacune reliée aux fonctions qu’elle réalise.`);
   push('run', 'Exécution lancée', 'Itération 1 du diagramme — demandez « raffine » à l’orchestrateur pour détailler.');
 
   return {
-    components: [env, component, user],
+    components: [...environnants, component],
     flows,
     functionAgents,
     tasks,
@@ -442,8 +634,8 @@ export function designSystemModel(request: string, projectId: string): SystemMod
 export function refineSystemModel(
   projectId: string,
   component: SystemComponent,
-  envId: string,
-  userId: string,
+  environments: SystemComponent[],
+  user: SystemComponent,
   iteration: number
 ): { functionAgents: AgentProfile[]; flows: FunctionalFlow[]; tasks: TaskNode[]; events: GenesisEvent[] } {
   const events: GenesisEvent[] = [];
@@ -460,6 +652,16 @@ export function refineSystemModel(
     return agent;
   });
 
+  // The acoustic flow SOURCES from the environnant carrying the researched
+  // noise quantity (site/neighbourhood), and its steps land (or not) in
+  // the user's conformity zone — same rule as the level-1 flows.
+  const noiseEnv =
+    environments.find((c) => c.quantities?.some((q) => /bruit/i.test(q.name))) ?? environments[0];
+  const noiseIn = noiseEnv?.quantities?.find((q) => /bruit/i.test(q.name))?.value ?? 65;
+  const rMass = 20 * Math.log10(510 * 500) - 47; // mass law, m''=510 kg/m², 500 Hz
+  const residual = Math.max(0, noiseIn - rMass);
+  const noiseReq = user.requirements?.find((r) => /bruit/i.test(r.name));
+
   const flows: FunctionalFlow[] = functionAgents
     .filter((_, i) => level2[i].flows[0] === 'Flux acoustique')
     .map((agent) => ({
@@ -467,8 +669,15 @@ export function refineSystemModel(
       projectId,
       name: 'Flux acoustique',
       color: FLOW_COLORS['Flux acoustique'],
-      path: [envId, agent.id, userId],
+      path: [noiseEnv.id, agent.id, user.id],
       iteration,
+      steps: [
+        { nodeId: noiseEnv.id, label: 'Bruit routier en façade (recherché)', value: noiseIn, unit: 'dB(A)' },
+        { nodeId: agent.id, label: 'Affaiblissement R (loi de masse)', value: rMass, unit: 'dB' },
+        { nodeId: user.id, label: 'Bruit résiduel livré', value: residual, unit: 'dB(A)' },
+      ],
+      requirement: noiseReq,
+      conform: noiseReq ? residual >= noiseReq.min && residual <= noiseReq.max : undefined,
     }));
 
   const task: TaskNode = {

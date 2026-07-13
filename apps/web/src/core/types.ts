@@ -364,13 +364,43 @@ export type MainTab = 'HOME' | 'FLUX' | 'SYSTEM';
 /* MBSE system model — meta-components, function agents, flows         */
 /* ------------------------------------------------------------------ */
 
+/** One physical quantity characterising an ENVIRONNANT (researched data). */
+export interface PhysicalQuantity {
+  name: string;
+  symbol: string;
+  value: number;
+  unit: string;
+}
+
+/** A conformity range required by the USER environnant (target zone). */
+export interface ConformityRange {
+  name: string;
+  min: number;
+  max: number;
+  unit: string;
+}
+
+/** One step of a functional flow: the quantity as transformed at a node. */
+export interface FlowStep {
+  nodeId: string;
+  label: string;
+  value: number;
+  unit: string;
+}
+
 /**
  * A META-COMPONENT of the MBSE block diagram: a PHYSICAL component of the
  * system (mechanical, electronic, material…). It contains function agents —
  * one agent per PHYSICAL FUNCTION of the component (e.g. for a raw-earth
  * brick: thermal insulation, mechanical stress, thermal inertia,
- * hygrometrics). 'environment' is the outside world (source), 'user' is the
- * user of the object (sink).
+ * hygrometrics).
+ *
+ * 'environment' components are the ENVIRONNANTS: elements of the external
+ * environment (climate, ground, neighbourhood…), each CHARACTERISED BY WEB
+ * RESEARCH (research agents): characteristics, physical quantities, news —
+ * served as INPUTS to the system's function agents. 'user' is the
+ * environnant that USES the system (sink); it carries the CONFORMITY ZONE:
+ * the physical criteria the transformed quantities must reach.
  */
 export interface SystemComponent {
   id: string;
@@ -381,6 +411,16 @@ export interface SystemComponent {
   functionAgentIds: string[];
   /** Iteration at which this component appeared (iterative refinement). */
   iteration: number;
+  /** ENVIRONNANTS: researched characteristics (web search). */
+  characteristics?: string[];
+  /** ENVIRONNANTS: researched physical quantities (web search). */
+  quantities?: PhysicalQuantity[];
+  /** ENVIRONNANTS: researched information & news (web search). */
+  news?: string[];
+  /** USER environnant only: the conformity zone (required ranges). */
+  requirements?: ConformityRange[];
+  /** Id of the web-research task that characterised this environnant. */
+  researchTaskId?: string;
 }
 
 /**
@@ -395,9 +435,20 @@ export interface FunctionalFlow {
   name: string;
   /** Accessible color for the diagram path + legend. */
   color: string;
-  /** Ordered node ids: [environment, ...function agents, user]. */
+  /** Ordered node ids: [source environnant, ...function agents, user]. */
   path: string[];
   iteration: number;
+  /**
+   * Step-by-step transformation of the physical quantity along the flow:
+   * from the source environnant's researched value, through each function
+   * agent (computed with its real formulas), down to the value DELIVERED
+   * to the user environnant.
+   */
+  steps?: FlowStep[];
+  /** The user-environnant requirement the delivered value must satisfy. */
+  requirement?: ConformityRange;
+  /** True when the delivered value lands inside the conformity zone. */
+  conform?: boolean;
 }
 
 export type View =

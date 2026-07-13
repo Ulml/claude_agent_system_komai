@@ -645,14 +645,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refineSystem = useCallback((): boolean => {
     if (!selectedProjectId || systemIteration === 0 || isGenesisRunning) return false;
     const component = systemComponents.find((c) => c.kind === 'component');
-    const env = systemComponents.find((c) => c.kind === 'environment');
+    const environments = systemComponents.filter((c) => c.kind === 'environment');
     const user = systemComponents.find((c) => c.kind === 'user');
-    if (!component || !env || !user) return false;
+    if (!component || environments.length === 0 || !user) return false;
     // Level-2 functions only exist once; a second refine is a no-op.
     if (systemIteration >= 2) return false;
 
     const next = systemIteration + 1;
-    const delta = refineSystemModel(selectedProjectId, component, env.id, user.id, next);
+    const delta = refineSystemModel(selectedProjectId, component, environments, user, next);
     setIsGenesisRunning(true);
     setGenesisEvents([]);
     delta.functionAgents.forEach((a) => createAgent(a));
