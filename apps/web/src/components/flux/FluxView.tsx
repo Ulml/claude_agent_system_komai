@@ -49,6 +49,23 @@ const TaskDetail: React.FC<{ task: TaskNode }> = ({ task }) => {
         <p className={`text-sm ${theme.secondaryText}`}>{task.input}</p>
       </div>
 
+      {/* MBSE link: the function agents this construction task realises. */}
+      {task.realizes && task.realizes.length > 0 && (
+        <div>
+          <MicroLabel className="mb-1">{t.realizesLabel}</MicroLabel>
+          <ul className="flex flex-wrap gap-1.5">
+            {task.realizes.map((id) => {
+              const fn = agents.find((a) => a.id === id);
+              return fn ? (
+                <li key={id} className={`px-2.5 py-1 rounded-full text-xs font-medium ${theme.iconBg} ${theme.secondaryText}`}>
+                  {fn.name}
+                </li>
+              ) : null;
+            })}
+          </ul>
+        </div>
+      )}
+
       {task.output && (
         <div>
           <MicroLabel className="mb-1">{t.taskOutput}</MicroLabel>

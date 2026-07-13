@@ -73,6 +73,48 @@ supplémentaire —, N'IMPORTE QUELLE demande déclenche le pipeline génératif
    matérialisent dans un dossier « Équipe Génésis », flux suivi en temps réel
    dans l'onglet Flux (marqueur ∥ pour les tâches parallèles).
 
+## 3 ter. Le modèle SYSTÈME (MBSE, orchestrateur génératif)
+
+L'orchestrateur **reconnaît la nature de la demande** : un **flux de
+travail** est affiché en graphe **PERT** dans l'onglet « Flux » (§3.5) ;
+un **design / une conception** d'objet physique produit un **diagramme de
+bloc MBSE** (`apps/web/src/core/mbse.ts`, détection `MBSE_TRIGGER`),
+affiché dans l'onglet dédié « **Flux fonctionnel** » :
+
+- **Méta-composant = composant physique** (mécanique, électronique,
+  matériau…), rendu comme un dossier d'agents sur le bureau. Exemple de
+  référence : la **brique en terre crue**.
+- **Un agent par fonction physique** à l'intérieur du méta-composant —
+  Isolation thermique (loi de Fourier, R = e/λ), Inertie thermique
+  (α = λ/ρc), Mécanique (σ = F/A, Hooke, facteur de sécurité avant rupture),
+  Hygrométrie (valeur tampon MBV) — chacun avec sa méthode de calcul
+  conforme (graphe I/O, formules expliquées, sources SOTA, cas connus
+  réellement calculés).
+- **Environnants caractérisés par recherche internet** : chaque élément de
+  l'environnement externe au système (climat, site/voisinage, habitant…)
+  est un **environnant**. Les agents de recherche le caractérisent sur
+  internet — toutes les **caractéristiques**, toutes les **grandeurs
+  physiques**, toutes les **informations/actualités** (si appropriées) —
+  via une tâche « Recherche web — environnant » dédiée, et ces données
+  sont **servies en entrée aux agents du système** (tâches de
+  dimensionnement, agents-fonctions). L'environnant **utilisateur** porte
+  la **zone de conformité** : les plages de critères physiques requis.
+- **Flux fonctionnels de bout en bout** : de l'**environnant source** à
+  l'**environnant utilisateur**, en traversant les agents-fonctions qui
+  **transforment pas à pas les grandeurs physiques** (valeur recherchée →
+  transformations calculées avec les formules réelles → valeur livrée),
+  jusqu'à atterrir (ou non) dans la zone de conformité — badge conforme /
+  hors zone par flux (flux thermique, flux d'humidité, flux de charges,
+  flux acoustique…), tracés en couleurs accessibles avec légende.
+- **Lien tâches ↔ fonctions** : le flux de tâches de construction (de
+  l'idée à la remise des clés puis l'utilisation) est généré en même temps ;
+  chaque tâche déclare les fonctions qu'elle `réalise` (chips dans le
+  détail de tâche, badges « n tâches » sur les nœuds du diagramme).
+- **Construction itérative planifiée** : dire « raffine » à l'orchestrateur
+  déclenche l'itération suivante — le diagramme se densifie (fonctions de
+  niveau 2 : acoustique, étanchéité à l'air), de nouveaux flux apparaissent
+  et la tâche d'ingénierie correspondante rejoint le graphe de tâches.
+
 ## 4. Les agents
 
 - **Structure standard unique** (harnais Hermes, `packages/agent_harness`) ;

@@ -251,6 +251,12 @@ export interface TaskNode {
   conformity: ConformityReport | null;
   accessible: boolean;
   /**
+   * MBSE link: the function agents this construction task REALISES.
+   * This is what ties the task flow (build the house, idea → keys) to the
+   * functional flow of the object (thermal / mechanical / humidity…).
+   */
+  realizes?: string[];
+  /**
    * Present on SUB-FLOW tasks only: the id of the META-AGENT this task
    * details. Sub-flow tasks never appear in the main project flow — they
    * render in the meta-agent's « Flux » tab and inside the rounded outline
@@ -350,8 +356,100 @@ export interface RepoFile {
 /* ------------------------------------------------------------------ */
 
 /** Top-level views reachable from the navigation tabs above the meta-chat.
- *  KOMAÏ Coding is an agent icon like any other — it is NOT a top tab. */
-export type MainTab = 'HOME' | 'FLUX';
+ *  KOMAÏ Coding is an agent icon like any other — it is NOT a top tab.
+ *  SYSTEM is the MBSE block diagram of the designed physical system. */
+export type MainTab = 'HOME' | 'FLUX' | 'SYSTEM';
+
+/* ------------------------------------------------------------------ */
+/* MBSE system model — meta-components, function agents, flows         */
+/* ------------------------------------------------------------------ */
+
+/** One physical quantity characterising an ENVIRONNANT (researched data). */
+export interface PhysicalQuantity {
+  name: string;
+  symbol: string;
+  value: number;
+  unit: string;
+}
+
+/** A conformity range required by the USER environnant (target zone). */
+export interface ConformityRange {
+  name: string;
+  min: number;
+  max: number;
+  unit: string;
+}
+
+/** One step of a functional flow: the quantity as transformed at a node. */
+export interface FlowStep {
+  nodeId: string;
+  label: string;
+  value: number;
+  unit: string;
+}
+
+/**
+ * A META-COMPONENT of the MBSE block diagram: a PHYSICAL component of the
+ * system (mechanical, electronic, material…). It contains function agents —
+ * one agent per PHYSICAL FUNCTION of the component (e.g. for a raw-earth
+ * brick: thermal insulation, mechanical stress, thermal inertia,
+ * hygrometrics).
+ *
+ * 'environment' components are the ENVIRONNANTS: elements of the external
+ * environment (climate, ground, neighbourhood…), each CHARACTERISED BY WEB
+ * RESEARCH (research agents): characteristics, physical quantities, news —
+ * served as INPUTS to the system's function agents. 'user' is the
+ * environnant that USES the system (sink); it carries the CONFORMITY ZONE:
+ * the physical criteria the transformed quantities must reach.
+ */
+export interface SystemComponent {
+  id: string;
+  projectId: string;
+  name: string;
+  kind: 'environment' | 'component' | 'user';
+  /** The function agents living INSIDE this meta-component. */
+  functionAgentIds: string[];
+  /** Iteration at which this component appeared (iterative refinement). */
+  iteration: number;
+  /** ENVIRONNANTS: researched characteristics (web search). */
+  characteristics?: string[];
+  /** ENVIRONNANTS: researched physical quantities (web search). */
+  quantities?: PhysicalQuantity[];
+  /** ENVIRONNANTS: researched information & news (web search). */
+  news?: string[];
+  /** USER environnant only: the conformity zone (required ranges). */
+  requirements?: ConformityRange[];
+  /** Id of the web-research task that characterised this environnant. */
+  researchTaskId?: string;
+}
+
+/**
+ * An end-to-end FUNCTIONAL FLOW of the system: it starts at the
+ * environment, crosses the function agents that carry it (each agent
+ * computes its share of the flow), and ends at the user.
+ * E.g. « Flux thermique » : Extérieur → Isolation → Inertie → Habitant.
+ */
+export interface FunctionalFlow {
+  id: string;
+  projectId: string;
+  name: string;
+  /** Accessible color for the diagram path + legend. */
+  color: string;
+  /** Ordered node ids: [source environnant, ...function agents, user]. */
+  path: string[];
+  iteration: number;
+  /**
+   * Step-by-step transformation of the physical quantity along the flow:
+   * from the source environnant's researched value, through each function
+   * agent (computed with its real formulas), down to the value DELIVERED
+   * to the user environnant.
+   */
+  steps?: FlowStep[];
+  /** The user-environnant requirement the delivered value must satisfy. */
+  requirement?: ConformityRange;
+  /** True when the delivered value lands inside the conformity zone. */
+  conform?: boolean;
+}
 
 export type View =
   | { kind: 'tab'; tab: MainTab }
