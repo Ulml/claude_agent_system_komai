@@ -7,9 +7,26 @@
 import React from 'react';
 import { useApp } from '@/contexts/AppContext';
 
-/** Renders **bold** and `code` spans inside one line of text. */
+/** Renders **bold**, `code` and [label](url) links inside one line of text. */
 function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
+  return text.split(/(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
+    const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part);
+    if (link) {
+      const href = link[2];
+      // Only allow safe web schemes (XSS-safe: no javascript: URLs).
+      const safe = /^https?:\/\//i.test(href) ? href : '#';
+      return (
+        <a
+          key={`${keyPrefix}-${i}`}
+          href={safe}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline decoration-dotted underline-offset-2 text-sky-500 hover:text-sky-400 break-words"
+        >
+          {link[1]}
+        </a>
+      );
+    }
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={`${keyPrefix}-${i}`}>{part.slice(2, -2)}</strong>;
     }

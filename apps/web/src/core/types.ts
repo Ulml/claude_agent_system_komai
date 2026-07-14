@@ -364,12 +364,21 @@ export type MainTab = 'HOME' | 'FLUX' | 'SYSTEM';
 /* MBSE system model — meta-components, function agents, flows         */
 /* ------------------------------------------------------------------ */
 
-/** One physical quantity characterising an ENVIRONNANT (researched data). */
+/** One physical quantity characterising an ENVIRONNANT (researched data).
+ *  Every researched quantity is SOURCED (traceable web reference). */
 export interface PhysicalQuantity {
   name: string;
   symbol: string;
   value: number;
   unit: string;
+  /** The web source that establishes this value (mandatory for environnants). */
+  source?: SotaSource;
+}
+
+/** One sourced characteristic or piece of news of an environnant. */
+export interface SourcedFact {
+  text: string;
+  source: SotaSource;
 }
 
 /** A conformity range required by the USER environnant (target zone). */
@@ -411,16 +420,19 @@ export interface SystemComponent {
   functionAgentIds: string[];
   /** Iteration at which this component appeared (iterative refinement). */
   iteration: number;
-  /** ENVIRONNANTS: researched characteristics (web search). */
-  characteristics?: string[];
-  /** ENVIRONNANTS: researched physical quantities (web search). */
+  /** ENVIRONNANTS: researched characteristics, each with its web source. */
+  characteristics?: SourcedFact[];
+  /** ENVIRONNANTS: researched physical quantities, each sourced. */
   quantities?: PhysicalQuantity[];
-  /** ENVIRONNANTS: researched information & news (web search). */
-  news?: string[];
+  /** ENVIRONNANTS: researched information & news, each sourced. */
+  news?: SourcedFact[];
   /** USER environnant only: the conformity zone (required ranges). */
   requirements?: ConformityRange[];
   /** Id of the web-research task that characterised this environnant. */
   researchTaskId?: string;
+  /** The AGENT that embodies this environnant (its page shows the sourced
+   *  research). Present on environment/user components. */
+  environnantAgentId?: string;
 }
 
 /**

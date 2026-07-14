@@ -610,22 +610,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setGenesisEvents([]);
 
       model.functionAgents.forEach((a) => createAgent(a));
+      // Each environnant is embodied by an AGENT whose page shows the sourced
+      // web research — publish them so the sourcing is visible in the UI.
+      model.environnantAgents.forEach((a) => createAgent(a));
       setSystemComponents(model.components);
       setFunctionalFlows(model.flows);
       setSystemIteration(1);
 
-      // Each meta-component becomes an agent FOLDER on the desktop.
+      // Each meta-component becomes an agent FOLDER on the desktop, and all
+      // environnant agents are grouped into an « Environnants » folder.
       const component = model.components.find((c) => c.kind === 'component')!;
+      const envAgentIds = model.environnantAgents.map((a) => a.id);
+      const allNewAgentIds = [...model.functionAgents.map((a) => a.id), ...envAgentIds];
       setFolders((prev) => [
         ...prev,
         { id: `folder-${component.id}`, name: component.name, agentIds: component.functionAgentIds },
+        ...(envAgentIds.length ? [{ id: `folder-env-${component.id}`, name: 'Environnants', agentIds: envAgentIds }] : []),
       ]);
       setProjects((prev) =>
         prev.map((p) =>
           p.id === selectedProjectId
             ? {
                 ...p,
-                agentIds: [...new Set([...p.agentIds, ...model.functionAgents.map((a) => a.id)])],
+                agentIds: [...new Set([...p.agentIds, ...allNewAgentIds])],
                 perimeters: p.perimeters.map((per) =>
                   per.role === 'owner' ? { ...per, taskIds: [...per.taskIds, ...model.tasks.map((task) => task.id)] } : per
                 ),

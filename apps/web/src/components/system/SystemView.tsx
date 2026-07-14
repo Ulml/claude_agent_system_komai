@@ -10,26 +10,63 @@
  * Each functional flow starts at its source environnant, crosses the
  * function agents that TRANSFORM the physical quantity step by step, and
  * ends at the user — the delivered value is checked against the conformity
- * zone (badge per flow). Function nodes are clickable (agent page) and
- * show how many construction tasks realise them. The diagram densifies at
- * each planned refinement iteration (ask the orchestrator to « raffiner »).
+ * zone (badge per flow). Function nodes and environnant nodes are clickable
+ * (they open the corresponding agent page — the environnant agent's page
+ * shows the SOURCED web research). Node texts WRAP so nothing is truncated.
+ * The diagram densifies at each planned refinement iteration.
  */
 import React from 'react';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, ExternalLink, XCircle } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { MicroLabel, Panel } from '@/components/ui/Glass';
 import { SYSTEM_NODE_ICONS } from '@/core/mbse';
+import type { SourcedFact } from '@/core/types';
 
-const NODE_H = 56;
-const ENV_H = 64;
-const ENV_GAP = 24;
-const FN_W = 260;
-const SIDE_W = 158;
 const GAP_Y = 26;
+const ENV_GAP = 22;
+const FN_W = 260;
+const SIDE_W = 168;
 const COL_GAP = 90;
+const LINE_H = 15; // line height for wrapped text
 
 const fmt = (v: number) =>
   Number.isInteger(v) ? v.toString() : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(1) : v.toPrecision(3);
+
+/** Greedy word-wrap: split text into lines of at most `maxChars` characters. */
+const wrap = (text: string, maxChars: number): string[] => {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    if (cur && (cur + ' ' + w).length > maxChars) {
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = cur ? `${cur} ${w}` : w;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+};
+
+/** A wrapped, centred or left-aligned multi-line SVG text block. */
+const TextLines: React.FC<{
+  lines: string[];
+  x: number;
+  y: number;
+  fontSize: number;
+  fill: string;
+  weight?: number;
+  anchor?: 'start' | 'middle';
+}> = ({ lines, x, y, fontSize, fill, weight = 400, anchor = 'start' }) => (
+  <text x={x} y={y} fontSize={fontSize} fontWeight={weight} fill={fill} textAnchor={anchor}>
+    {lines.map((ln, i) => (
+      <tspan key={i} x={x} dy={i === 0 ? 0 : LINE_H}>
+        {ln}
+      </tspan>
+    ))}
+  </text>
+);
 
 const SystemView: React.FC = () => {
   const { theme, t, systemComponents, functionalFlows, systemIteration, agents, tasks, setView, selectedProjectId } =
@@ -52,16 +89,47 @@ const SystemView: React.FC = () => {
     .filter((a): a is NonNullable<typeof a> => Boolean(a));
   const flows = functionalFlows.filter((f) => f.projectId === selectedProjectId);
 
-  // Layout: function nodes stacked inside the component block; environnant
-  // blocks stacked in the left column.
-  const innerH = fnAgents.length * NODE_H + (fnAgents.length - 1) * GAP_Y;
-  const envsH = envs.length * ENV_H + (envs.length - 1) * ENV_GAP;
+  // Open the agent embodying an environnant (its page shows the sourced
+  // research). Falls back to no-op if the environnant has no agent.
+  const openEnv = (agentId?: string) => {
+    if (agentId && agents.some((a) => a.id === agentId)) setView({ kind: 'agent', agentId });
+  };
+
+  /* ---- Variable-height layout so wrapped texts are never truncated ---- */
+  // Function nodes: name (≤30 chars/line) + tagline (≤40 chars/line).
+  const fnLines = fnAgents.map((a) => ({
+    name: wrap(a.name, 30),
+    sub: wrap(a.tagline.split(' — ')[0], 40),
+  }));
+  const fnHeights = fnLines.map((l) => 14 + l.name.length * LINE_H + 4 + l.sub.length * (LINE_H - 2) + 12);
+  const fnTops: number[] = [];
+  fnLines.forEach((_, i) => {
+    fnTops[i] = i === 0 ? 0 : fnTops[i - 1] + fnHeights[i - 1] + GAP_Y;
+  });
+  const innerH = fnHeights.reduce((s, h) => s + h, 0) + (fnHeights.length - 1) * GAP_Y;
+
+  // Environnant side blocks: name (≤22 chars/line) + up to 2 quantity lines.
+  const envNameLines = envs.map((e) => wrap(e.name, 22));
+  const envRealHeights = envs.map((e, i) => 14 + envNameLines[i].length * LINE_H + Math.min(2, (e.quantities ?? []).length) * 13 + 12);
+  const envTops: number[] = [];
+  envs.forEach((_, i) => {
+    envTops[i] = i === 0 ? 0 : envTops[i - 1] + envRealHeights[i - 1] + ENV_GAP;
+  });
+  const envsH = envRealHeights.reduce((s, h) => s + h, 0) + (envRealHeights.length - 1) * ENV_GAP;
+
+  const userNameLines = wrap(user.name, 22);
+  const userH = 14 + userNameLines.length * LINE_H + 12;
+
   const blockPad = 46;
-  const H = Math.max(innerH + 2 * blockPad, envsH + 40, 260);
+  const H = Math.max(innerH + 2 * blockPad, envsH + 40, userH + 40, 260);
   const W = SIDE_W + COL_GAP + FN_W + COL_GAP + SIDE_W + 40;
   const fnX = SIDE_W + COL_GAP + 20;
-  const fnY = (i: number) => (H - innerH) / 2 + i * (NODE_H + GAP_Y);
-  const envY = (i: number) => (H - envsH) / 2 + i * (ENV_H + ENV_GAP);
+  const fnTop0 = (H - innerH) / 2;
+  const fnTop = (i: number) => fnTop0 + fnTops[i];
+  const fnCenterY = (i: number) => fnTop(i) + fnHeights[i] / 2;
+  const envTop0 = (H - envsH) / 2;
+  const envTop = (i: number) => envTop0 + envTops[i];
+  const envCenterY = (i: number) => envTop(i) + envRealHeights[i] / 2;
   const midY = H / 2;
   const fnIndex = new Map(fnAgents.map((a, i) => [a.id, i]));
   const envIndex = new Map(envs.map((c, i) => [c.id, i]));
@@ -75,9 +143,9 @@ const SystemView: React.FC = () => {
   /** Path of one flow: its source environnant → carried functions → user. */
   const flowPath = (flow: (typeof flows)[number]): string => {
     const srcIdx = envIndex.get(flow.path[0]) ?? 0;
-    const srcY = envY(srcIdx) + ENV_H / 2;
+    const srcY = envCenterY(srcIdx);
     const carried = flow.path.filter((id) => fnIndex.has(id));
-    const ys = carried.map((id) => fnY(fnIndex.get(id)!) + NODE_H / 2);
+    const ys = carried.map((id) => fnCenterY(fnIndex.get(id)!));
     const x0 = 20 + SIDE_W;
     const xIn = fnX;
     const xOut = fnX + FN_W;
@@ -98,6 +166,23 @@ const SystemView: React.FC = () => {
 
   const tasksRealizing = (agentId: string) =>
     tasks.filter((task) => task.projectId === selectedProjectId && task.realizes?.includes(agentId)).length;
+
+  /** Renders a sourced fact with a clickable source link. */
+  const Fact: React.FC<{ fact: SourcedFact }> = ({ fact }) => (
+    <li>
+      {fact.text}{' '}
+      <a
+        href={fact.source.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex items-center gap-0.5 text-sky-500 hover:text-sky-400 underline decoration-dotted underline-offset-2"
+      >
+        {fact.source.label}
+        <ExternalLink size={10} aria-hidden />
+      </a>
+    </li>
+  );
 
   return (
     <section aria-label={t.system} className="w-full max-w-5xl mx-auto px-4 py-6 animate-fade-up space-y-4">
@@ -134,17 +219,38 @@ const SystemView: React.FC = () => {
             <path key={f.id} d={flowPath(f)} fill="none" stroke={f.color} strokeWidth={2.5} opacity={0.85} />
           ))}
 
-          {/* ENVIRONNANTS (sources) — one block each, researched data */}
+          {/* ENVIRONNANTS (sources) — clickable, open the sourced agent page */}
           {envs.map((env, i) => {
-            const y = envY(i);
+            const y = envTop(i);
+            const h = envRealHeights[i];
+            const clickable = Boolean(env.environnantAgentId);
             return (
-              <g key={env.id}>
-                <rect x={20} y={y} width={SIDE_W} height={ENV_H} rx={14} fill={fill} stroke={stroke} />
-                <text x={20 + SIDE_W / 2} y={y + 22} fontSize="11.5" fontWeight="700" fill={textColor} textAnchor="middle">
-                  {env.name}
-                </text>
+              <g
+                key={env.id}
+                onClick={() => openEnv(env.environnantAgentId)}
+                style={{ cursor: clickable ? 'pointer' : 'default' }}
+                role={clickable ? 'button' : undefined}
+                aria-label={clickable ? `${env.name} — ${t.openEnvAgent}` : env.name}
+              >
+                <rect x={20} y={y} width={SIDE_W} height={h} rx={14} fill={fill} stroke={stroke} />
+                <TextLines
+                  lines={envNameLines[i]}
+                  x={20 + SIDE_W / 2}
+                  y={y + 20}
+                  fontSize={11.5}
+                  weight={700}
+                  fill={textColor}
+                  anchor="middle"
+                />
                 {(env.quantities ?? []).slice(0, 2).map((q, j) => (
-                  <text key={q.symbol} x={20 + SIDE_W / 2} y={y + 38 + j * 13} fontSize="9" fill={subColor} textAnchor="middle">
+                  <text
+                    key={q.symbol}
+                    x={20 + SIDE_W / 2}
+                    y={y + 20 + envNameLines[i].length * LINE_H + j * 13}
+                    fontSize="9"
+                    fill={subColor}
+                    textAnchor="middle"
+                  >
                     {q.symbol} = {fmt(q.value)} {q.unit}
                   </text>
                 ))}
@@ -156,7 +262,7 @@ const SystemView: React.FC = () => {
           <g>
             <rect
               x={fnX - 20}
-              y={(H - innerH) / 2 - blockPad + 14}
+              y={fnTop0 - blockPad + 14}
               width={FN_W + 40}
               height={innerH + 2 * blockPad - 28}
               rx={22}
@@ -164,24 +270,27 @@ const SystemView: React.FC = () => {
               stroke={stroke}
               strokeDasharray="6 4"
             />
-            <text x={fnX + FN_W / 2} y={(H - innerH) / 2 - blockPad + 34} fontSize="11" fontWeight="700" fill={subColor} textAnchor="middle" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' } as never}>
+            <text x={fnX + FN_W / 2} y={fnTop0 - blockPad + 34} fontSize="11" fontWeight="700" fill={subColor} textAnchor="middle" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' } as never}>
               {component.name}
             </text>
           </g>
 
-          {/* Function-agent nodes */}
+          {/* Function-agent nodes (clickable, wrapped text) */}
           {fnAgents.map((agent, i) => {
-            const y = fnY(i);
+            const y = fnTop(i);
+            const h = fnHeights[i];
             const n = tasksRealizing(agent.id);
             return (
-              <g key={agent.id} onClick={() => setView({ kind: 'agent', agentId: agent.id })} style={{ cursor: 'pointer' }}>
-                <rect x={fnX} y={y} width={FN_W} height={NODE_H} rx={14} fill={fill} stroke={stroke} strokeWidth={1.4} />
-                <text x={fnX + 14} y={y + 23} fontSize="12.5" fontWeight="700" fill={textColor}>
-                  {agent.name}
-                </text>
-                <text x={fnX + 14} y={y + 40} fontSize="10" fill={subColor}>
-                  {agent.tagline.split(' — ')[0]}
-                </text>
+              <g key={agent.id} onClick={() => setView({ kind: 'agent', agentId: agent.id })} style={{ cursor: 'pointer' }} role="button" aria-label={agent.name}>
+                <rect x={fnX} y={y} width={FN_W} height={h} rx={14} fill={fill} stroke={stroke} strokeWidth={1.4} />
+                <TextLines lines={fnLines[i].name} x={fnX + 14} y={y + 22} fontSize={12.5} weight={700} fill={textColor} />
+                <TextLines
+                  lines={fnLines[i].sub}
+                  x={fnX + 14}
+                  y={y + 22 + fnLines[i].name.length * LINE_H + 2}
+                  fontSize={10}
+                  fill={subColor}
+                />
                 {n > 0 && (
                   <>
                     <rect x={fnX + FN_W - 58} y={y + 8} width={48} height={16} rx={8} fill={theme.isDark ? '#334155' : '#e2e8f0'} />
@@ -194,15 +303,23 @@ const SystemView: React.FC = () => {
             );
           })}
 
-          {/* User environnant (sink, carries the conformity zone) */}
-          <g>
-            <rect x={W - 20 - SIDE_W} y={midY - NODE_H / 2} width={SIDE_W} height={NODE_H} rx={14} fill={fill} stroke={stroke} />
-            <text x={W - 20 - SIDE_W / 2} y={midY - 4} fontSize="12" fontWeight="700" fill={textColor} textAnchor="middle">
-              {user.name.split(' ')[0]}
-            </text>
-            <text x={W - 20 - SIDE_W / 2} y={midY + 12} fontSize="10" fill={subColor} textAnchor="middle">
-              {user.name.split(' ').slice(1).join(' ')}
-            </text>
+          {/* User environnant (sink, carries the conformity zone) — clickable */}
+          <g
+            onClick={() => openEnv(user.environnantAgentId)}
+            style={{ cursor: user.environnantAgentId ? 'pointer' : 'default' }}
+            role={user.environnantAgentId ? 'button' : undefined}
+            aria-label={user.name}
+          >
+            <rect x={W - 20 - SIDE_W} y={midY - userH / 2} width={SIDE_W} height={userH} rx={14} fill={fill} stroke={stroke} />
+            <TextLines
+              lines={userNameLines}
+              x={W - 20 - SIDE_W / 2}
+              y={midY - userH / 2 + 20}
+              fontSize={12}
+              weight={700}
+              fill={textColor}
+              anchor="middle"
+            />
           </g>
         </svg>
       </div>
@@ -247,20 +364,31 @@ const SystemView: React.FC = () => {
           ))}
       </div>
 
-      {/* The environnants: researched characteristics / quantities / news */}
+      {/* The environnants: researched characteristics / quantities / news,
+          every fact SOURCED. The card header opens the environnant agent. */}
       <div className="space-y-2">
         <MicroLabel>{t.environnants}</MicroLabel>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[...envs, user].map((env) => (
             <Panel key={env.id} className="p-4 space-y-2">
-              <h3 className={`text-sm font-bold ${theme.primaryText}`}>{env.name}</h3>
+              <button
+                type="button"
+                onClick={() => openEnv(env.environnantAgentId)}
+                disabled={!env.environnantAgentId}
+                className={`flex items-center gap-1.5 text-sm font-bold text-left ${theme.primaryText} ${
+                  env.environnantAgentId ? 'hover:text-sky-500 cursor-pointer' : 'cursor-default'
+                }`}
+              >
+                {env.name}
+                {env.environnantAgentId && <ExternalLink size={13} aria-label={t.openEnvAgent} />}
+              </button>
               <p className={`text-[11px] leading-snug ${theme.mutedText}`}>{t.environnantNote}</p>
               {env.characteristics && env.characteristics.length > 0 && (
                 <div>
                   <p className={`text-[10px] font-bold uppercase tracking-wider ${theme.mutedText}`}>{t.characteristicsLabel}</p>
                   <ul className={`list-disc pl-4 text-xs space-y-0.5 ${theme.secondaryText}`}>
-                    {env.characteristics.map((c) => (
-                      <li key={c}>{c}</li>
+                    {env.characteristics.map((c, i) => (
+                      <Fact key={i} fact={c} />
                     ))}
                   </ul>
                 </div>
@@ -292,9 +420,9 @@ const SystemView: React.FC = () => {
               {env.news && env.news.length > 0 && (
                 <div>
                   <p className={`text-[10px] font-bold uppercase tracking-wider ${theme.mutedText}`}>{t.newsLabel}</p>
-                  <ul className={`text-xs italic space-y-0.5 ${theme.mutedText}`}>
-                    {env.news.map((n) => (
-                      <li key={n}>{n}</li>
+                  <ul className={`list-disc pl-4 text-xs italic space-y-0.5 ${theme.mutedText}`}>
+                    {env.news.map((n, i) => (
+                      <Fact key={i} fact={n} />
                     ))}
                   </ul>
                 </div>

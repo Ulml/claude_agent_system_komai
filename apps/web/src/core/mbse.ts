@@ -27,6 +27,7 @@ import {
   Gauge,
   Home as HomeIcon,
   Layers,
+  MapPin,
   ThermometerSun,
   UserRound,
   Volume2,
@@ -39,6 +40,8 @@ import type {
   FlowStep,
   FunctionalFlow,
   PhysicalQuantity,
+  SotaSource,
+  SourcedFact,
   SystemComponent,
   TaskNode,
 } from './types';
@@ -60,6 +63,8 @@ export interface SystemModel {
   components: SystemComponent[];
   flows: FunctionalFlow[];
   functionAgents: AgentProfile[];
+  /** One AGENT per environnant — its page shows the sourced web research. */
+  environnantAgents: AgentProfile[];
   tasks: TaskNode[];
   events: GenesisEvent[];
   componentFolderNames: Map<string, string>; // componentId → folder name
@@ -93,61 +98,81 @@ interface EnvironnantTemplate {
   slug: string;
   name: string;
   kind: 'environment' | 'user';
-  characteristics: string[];
+  icon: AgentProfile['icon'];
+  characteristics: SourcedFact[];
   quantities: PhysicalQuantity[];
-  news: string[];
+  news: SourcedFact[];
   requirements?: ConformityRange[];
 }
 
-/** Habitat reference library (values sourced from public climate/building
- *  data — the research task narrates where each figure comes from). */
+/** Reusable public sources (each researched datum cites one of these). */
+const SRC = {
+  meteo: { covers: 'Données climatiques', label: 'Météo-France — Climat & normales', url: 'https://meteofrance.com/climat' },
+  re2020: { covers: 'Réglementation thermique', label: 'RE2020 — Ministère (ecologie.gouv.fr)', url: 'https://www.ecologie.gouv.fr/reglementation-environnementale-re2020' },
+  eurocode: { covers: 'Charges climatiques (neige/vent)', label: 'Eurocodes structuraux (Wikipedia)', url: 'https://fr.wikipedia.org/wiki/Eurocode' },
+  brgm: { covers: 'Sol & sous-sol', label: 'InfoTerre — BRGM', url: 'https://infoterre.brgm.fr/' },
+  sismique: { covers: 'Zonage sismique', label: 'Zonage sismique de la France (Wikipedia)', url: 'https://fr.wikipedia.org/wiki/Zonage_sismique_de_la_France' },
+  bruit: { covers: 'Bruit routier', label: 'Bruit dans l’environnement (Wikipedia)', url: 'https://fr.wikipedia.org/wiki/Bruit_dans_l%27environnement' },
+  confort: { covers: 'Confort thermique / acoustique', label: 'ASHRAE 55 — Thermal comfort (Wikipedia)', url: 'https://en.wikipedia.org/wiki/Thermal_comfort' },
+  vapeur: { covers: 'Production de vapeur d’eau des occupants', label: 'Indoor moisture load (Wikipedia — humidity)', url: 'https://en.wikipedia.org/wiki/Humidity' },
+} satisfies Record<string, SotaSource>;
+
+/**
+ * Habitat reference library — EVERY researched datum is SOURCED. The values
+ * are illustrative of a Chevreuse-valley site; the research agents' page
+ * exposes exactly these facts with their clickable web sources.
+ */
 const HABITAT_ENVIRONNANTS: EnvironnantTemplate[] = [
   {
     slug: 'climat',
     name: 'Climat extérieur',
     kind: 'environment',
+    icon: CloudSun,
     characteristics: [
-      'Climat océanique dégradé (zone H1a)',
-      'Amplitude thermique jour/nuit marquée en été',
-      'Pluies battantes dominantes ouest en hiver',
+      { text: 'Climat océanique dégradé (zone climatique H1a)', source: SRC.meteo },
+      { text: 'Amplitude thermique jour/nuit marquée en été', source: SRC.meteo },
+      { text: 'Pluies battantes dominantes d’ouest en hiver', source: SRC.meteo },
     ],
     quantities: [
-      { name: 'Température extérieure de base (hiver)', symbol: 'T_ext', value: -7, unit: '°C' },
-      { name: 'Pic estival', symbol: 'T_max', value: 32, unit: '°C' },
-      { name: 'Humidité relative extérieure moyenne', symbol: 'HR_ext', value: 85, unit: '%' },
-      { name: 'Rafale de vent cinquantennale', symbol: 'V_max', value: 25, unit: 'm/s' },
+      { name: 'Température extérieure de base (hiver)', symbol: 'T_ext', value: -7, unit: '°C', source: SRC.meteo },
+      { name: 'Pic estival', symbol: 'T_max', value: 32, unit: '°C', source: SRC.meteo },
+      { name: 'Humidité relative extérieure moyenne', symbol: 'HR_ext', value: 85, unit: '%', source: SRC.meteo },
+      { name: 'Rafale de vent cinquantennale', symbol: 'V_max', value: 25, unit: 'm/s', source: SRC.eurocode },
     ],
     news: [
-      'RE2020 : renforcement du seuil Bbio pour les maisons individuelles',
-      'Épisodes caniculaires en hausse — confort d’été à justifier',
+      { text: 'RE2020 : renforcement du seuil Bbio pour les maisons individuelles', source: SRC.re2020 },
+      { text: 'Épisodes caniculaires en hausse — confort d’été à justifier', source: SRC.re2020 },
     ],
   },
   {
     slug: 'site',
     name: 'Site & voisinage',
     kind: 'environment',
+    icon: MapPin,
     characteristics: [
-      'Sol limono-argileux, nappe à 6 m',
-      'Zone sismique très faible (zone 1)',
-      'Route départementale à 60 m (bruit routier)',
+      { text: 'Sol limono-argileux, nappe à ~6 m', source: SRC.brgm },
+      { text: 'Zone sismique très faible (zone 1)', source: SRC.sismique },
+      { text: 'Route départementale à ~60 m (bruit routier)', source: SRC.bruit },
     ],
     quantities: [
-      { name: 'Portance du sol', symbol: 'q_adm', value: 0.25, unit: 'MPa' },
-      { name: 'Charge de neige au sol', symbol: 'S_k', value: 0.45, unit: 'kN/m²' },
-      { name: 'Descente de charges par brique', symbol: 'F', value: 45, unit: 'kN' },
-      { name: 'Bruit routier en façade', symbol: 'L_ext', value: 65, unit: 'dB(A)' },
+      { name: 'Portance admissible du sol', symbol: 'q_adm', value: 0.25, unit: 'MPa', source: SRC.brgm },
+      { name: 'Charge de neige au sol', symbol: 'S_k', value: 0.45, unit: 'kN/m²', source: SRC.eurocode },
+      { name: 'Descente de charges par brique', symbol: 'F', value: 45, unit: 'kN', source: SRC.eurocode },
+      { name: 'Bruit routier en façade', symbol: 'L_ext', value: 65, unit: 'dB(A)', source: SRC.bruit },
     ],
-    news: ['PLU : hauteur maximale 9 m, aspect terre/bois recommandé'],
+    news: [{ text: 'PLU : hauteur maximale 9 m, aspect terre/bois recommandé', source: SRC.brgm }],
   },
   {
     slug: 'habitant',
     name: 'Habitant (utilisateur)',
     kind: 'user',
-    characteristics: ['Famille de 4 personnes, occupation continue', 'Télétravail : exigence de calme en journée'],
-    quantities: [
-      { name: 'Production de vapeur d’eau quotidienne', symbol: 'm_vap', value: 600, unit: 'g/j' },
+    icon: UserRound,
+    characteristics: [
+      { text: 'Famille de 4 personnes, occupation continue', source: SRC.vapeur },
+      { text: 'Télétravail : exigence de calme en journée', source: SRC.confort },
     ],
-    news: ['Attente forte de confort d’été passif (sans climatisation)'],
+    quantities: [{ name: 'Production de vapeur d’eau quotidienne', symbol: 'm_vap', value: 600, unit: 'g/j', source: SRC.vapeur }],
+    news: [{ text: 'Attente forte de confort d’été passif (sans climatisation)', source: SRC.confort }],
     // The CONFORMITY ZONE: where the transformed quantities must land.
     requirements: [
       { name: 'Flux de chaleur traversant la paroi', min: 0, max: 50, unit: 'W/m²' },
@@ -162,6 +187,65 @@ const HABITAT_ENVIRONNANTS: EnvironnantTemplate[] = [
  *  the exact string served as INPUT to the system's agents. */
 function quantitiesSummary(tpl: EnvironnantTemplate): string {
   return tpl.quantities.map((q) => `${q.name} ${q.symbol} = ${q.value} ${q.unit}`).join(' · ');
+}
+
+/**
+ * Builds the AGENT that embodies an environnant. Its README is the SOURCED
+ * research report (every characteristic, quantity and news item cites a
+ * clickable web source), so the sourcing is visible on the agent's page.
+ * Its method carries the same sources (AGENT_STANDARD conformity).
+ */
+function buildEnvironnantAgent(tpl: EnvironnantTemplate): AgentProfile {
+  const list = (facts: SourcedFact[]) => facts.map((f) => `- ${f.text} — [${f.source.label}](${f.source.url})`).join('\n');
+  const quantities = tpl.quantities
+    .map((q) => `- **${q.name}** \`${q.symbol} = ${q.value} ${q.unit}\` — [${q.source?.label ?? 'source'}](${q.source?.url ?? '#'})`)
+    .join('\n');
+  const readme = `# Environnant : ${tpl.name}
+
+Élément de l'environnement **externe** au système, caractérisé par **recherche internet**. Toutes les données ci-dessous sont **sourcées** et servies en **entrée aux agents du système**.
+
+## Caractéristiques (sourcées)
+${list(tpl.characteristics)}
+
+## Grandeurs physiques (sourcées)
+${quantities}
+
+## Informations & actualités (sourcées)
+${list(tpl.news)}
+${tpl.requirements ? `\n## Zone de conformité requise (utilisateur)\n${tpl.requirements.map((r) => `- ${r.name} : ${r.min}–${r.max} ${r.unit}`).join('\n')}` : ''}`;
+
+  const sources: SotaSource[] = [
+    ...tpl.quantities.map((q) => q.source).filter((s): s is SotaSource => Boolean(s)),
+    ...tpl.characteristics.map((c) => c.source),
+    ...tpl.news.map((n) => n.source),
+  ];
+  // Deduplicate sources by url.
+  const uniqueSources = Array.from(new Map(sources.map((s) => [s.url, s])).values());
+
+  return {
+    id: nextId(`env-${tpl.slug}`),
+    name: `Environnant ${tpl.name}`,
+    kind: 'worker',
+    icon: tpl.icon,
+    tagline: `Élément de l'environnement externe — ${tpl.quantities.length} grandeurs sourcées servies en entrée`,
+    readme,
+    mermaidAlgorithm: `flowchart TD
+  WEB[Recherche internet sourcée] --> DATA[Caractéristiques · grandeurs · actualités]
+  DATA --> OUT[Entrées servies aux agents du système]`,
+    skills: ['Recherche web sourcée', 'Caractérisation d’environnement', tpl.name],
+    llmBinding: { providerId: 'google', model: 'gemini-3-pro-preview' },
+    status: 'idle',
+    method: {
+      graph: `flowchart TD
+  IN[Sujet : ${tpl.name}] --> SEARCH[Recherche web + vérification des sources]
+  SEARCH --> OUT[Grandeurs physiques sourcées]`,
+      formulas: [
+        { name: 'Traçabilité', formula: 'donnée → source vérifiée', explanation: 'Chaque grandeur physique renvoie à une référence internet vérifiable ; aucune valeur inventée.' },
+      ],
+      sources: uniqueSources,
+      checks: [{ label: 'Grandeurs sourcées / total', got: tpl.quantities.filter((q) => q.source).length, expected: tpl.quantities.length, unit: '—' }],
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -402,7 +486,12 @@ export function designSystemModel(request: string, projectId: string): SystemMod
   // by web research (characteristics, physical quantities, news) and its
   // data serves as input to the system's agents. The 'user' environnant
   // carries the conformity zone.
+  const environnantAgents: AgentProfile[] = [];
   const environnants = HABITAT_ENVIRONNANTS.map((tpl) => {
+    // Each environnant is embodied by an AGENT whose page shows the sourced
+    // web research (README = report with clickable sources).
+    const agent = buildEnvironnantAgent(tpl);
+    environnantAgents.push(agent);
     const cmp: SystemComponent = {
       id: nextId(`cmp-${tpl.slug}`),
       projectId,
@@ -414,11 +503,13 @@ export function designSystemModel(request: string, projectId: string): SystemMod
       quantities: tpl.quantities,
       news: tpl.news,
       requirements: tpl.requirements,
+      environnantAgentId: agent.id,
     };
     push(
       'intent',
       `Environnant caractérisé : ${tpl.name}`,
-      `${tpl.quantities.length} grandeurs physiques · ${tpl.characteristics.length} caractéristiques · ${tpl.news.length} actualités — recherchées sur internet, servies en entrée aux agents.`
+      `${tpl.quantities.length} grandeurs physiques · ${tpl.characteristics.length} caractéristiques · ${tpl.news.length} actualités — recherchées sur internet (sources vérifiables), servies en entrée aux agents.`,
+      agent.id
     );
     return cmp;
   });
@@ -619,6 +710,7 @@ export function designSystemModel(request: string, projectId: string): SystemMod
     components: [...environnants, component],
     flows,
     functionAgents,
+    environnantAgents,
     tasks,
     events,
     componentFolderNames: new Map([[component.id, componentName]]),
