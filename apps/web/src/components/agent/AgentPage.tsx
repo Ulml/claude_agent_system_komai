@@ -7,7 +7,7 @@
  * Apprentissage · Compétences · Logs · Présentation. Default = Entrées;
  * once the agent runs, the dock auto-switches to Travail en direct.
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Check, Download, X } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { MicroLabel, StatusPill } from '@/components/ui/Glass';
@@ -178,6 +178,9 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
 
   // Synthesized skills = base skills + those applied through learning.
   const synthesizedSkills = [...new Set([...agent.skills, ...agentLearning.map((l) => l.appliedToSkill)])];
+  // Skill selected in the « Compétences » tab (its content shows below the list).
+  const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
+  useEffect(() => setSelectedSkill(null), [agent.id]);
 
   // Logs = user remarks (chat) + judge feedback + learnings, filtered.
   const userRemarks = messages
@@ -468,20 +471,59 @@ const AgentPage: React.FC<{ agent: AgentProfile }> = ({ agent }) => {
           </div>
         )}
 
-        {/* 5 — Compétences (synthesized over iterations) */}
+        {/* 5 — Compétences (synthesized over iterations). The list at the top
+            is CLICKABLE: selecting a skill displays its content below —
+            origin (base vs learned) and the learnings applied to it. */}
         {agentTab === 'skills' &&
           (synthesizedSkills.length === 0 ? (
             <EmptyDef text={t.defSkills} />
           ) : (
             <>
               <EmptyDef text={t.defSkills} />
+              <p className={`text-xs ${theme.mutedText}`}>{t.skillSelectHint}</p>
               <ul className="flex flex-wrap gap-2">
                 {synthesizedSkills.map((s) => (
-                  <li key={s} className={`px-3 py-1.5 rounded-full text-xs font-medium ${theme.iconBg} ${theme.secondaryText}`}>
-                    {s}
+                  <li key={s}>
+                    <button
+                      type="button"
+                      aria-pressed={selectedSkill === s}
+                      onClick={() => setSelectedSkill(selectedSkill === s ? null : s)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        selectedSkill === s ? theme.userBubble : `${theme.iconBg} ${theme.secondaryText} ${theme.glassHover}`
+                      }`}
+                    >
+                      {s}
+                    </button>
                   </li>
                 ))}
               </ul>
+              {selectedSkill && (
+                <div className="space-y-3 pt-2 animate-fade-up" aria-live="polite">
+                  <h3 className={`text-lg font-bold tracking-tight ${theme.primaryText}`}>{selectedSkill}</h3>
+                  <p className={`text-xs font-semibold ${theme.secondaryText}`}>
+                    {agent.skills.includes(selectedSkill) ? t.skillOriginBase : t.skillOriginLearned}
+                  </p>
+                  <MicroLabel>{t.skillLearningsLabel}</MicroLabel>
+                  {agentLearning.filter((l) => l.appliedToSkill === selectedSkill).length === 0 ? (
+                    <p className={`text-sm ${theme.mutedText}`}>{t.skillNoLearning}</p>
+                  ) : (
+                    <ol className="space-y-2">
+                      {agentLearning
+                        .filter((l) => l.appliedToSkill === selectedSkill)
+                        .map((l) => (
+                          <li key={l.id} className="flex gap-3 items-start">
+                            <span
+                              className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${theme.iconBg} ${theme.mutedText}`}
+                            >
+                              {l.mode}
+                            </span>
+                            <p className={`text-sm ${theme.secondaryText}`}>{l.summary}</p>
+                          </li>
+                        ))}
+                    </ol>
+                  )}
+                </div>
+              )}
             </>
           ))}
 

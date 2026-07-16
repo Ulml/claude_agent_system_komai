@@ -20,6 +20,7 @@ import { CheckCircle2, ExternalLink, XCircle } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { MicroLabel, Panel } from '@/components/ui/Glass';
 import { SYSTEM_NODE_ICONS } from '@/core/mbse';
+import { fmtValue as fmt } from '@/core/variables';
 import type { SourcedFact } from '@/core/types';
 
 const GAP_Y = 26;
@@ -28,9 +29,6 @@ const FN_W = 260;
 const SIDE_W = 168;
 const COL_GAP = 90;
 const LINE_H = 15; // line height for wrapped text
-
-const fmt = (v: number) =>
-  Number.isInteger(v) ? v.toString() : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(1) : v.toPrecision(3);
 
 /** Greedy word-wrap: split text into lines of at most `maxChars` characters. */
 const wrap = (text: string, maxChars: number): string[] => {

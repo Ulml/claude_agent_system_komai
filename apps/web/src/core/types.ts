@@ -357,8 +357,9 @@ export interface RepoFile {
 
 /** Top-level views reachable from the navigation tabs above the meta-chat.
  *  KOMAÏ Coding is an agent icon like any other — it is NOT a top tab.
- *  SYSTEM is the MBSE block diagram of the designed physical system. */
-export type MainTab = 'HOME' | 'FLUX' | 'SYSTEM';
+ *  SYSTEM is the MBSE block diagram of the designed physical system;
+ *  VARIABLES is its variable space rendered as a NAMED TENSOR (views A/B/C). */
+export type MainTab = 'HOME' | 'FLUX' | 'SYSTEM' | 'VARIABLES';
 
 /* ------------------------------------------------------------------ */
 /* MBSE system model — meta-components, function agents, flows         */

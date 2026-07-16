@@ -130,10 +130,18 @@ La couleur **double** toujours une information déjà donnée par le texte/l'ic�
    page Agent, KOMAÏ Coding.
 4. **MetaChatDock** — ancré en bas de **chaque** page : pilule d'onglets de
    navigation **contextuels** + fenêtre de chat unique + surcouche d'historique.
-   - Sur l'accueil : `Accueil` / `Flux` / `Flux fonctionnel`.
+   - Sur l'accueil : `Accueil` / `Flux` / `Flux fonctionnel` / `Variables`.
    - Dans un agent : les onglets de l'agent (voir §8).
-   - Le chat parle **à l'agent affiché** (pas de liste déroulante de
-     destinataire). KOMAÏ Coding est une **icône d'agent**, jamais un onglet.
+   - La **barre d'onglets est 5 % plus courte de chaque côté** que la fenêtre
+     de chat. Les onglets qui débordent restent accessibles de deux façons :
+     **défilement horizontal** de la barre, ou bouton **« + »** qui ouvre un
+     menu **au-dessus de la barre** listant exactement les onglets non
+     affichés (plus l'action « détailler en sous-flux » sur les agents
+     éligibles).
+   - Le chat parle **à l'agent affiché** — aucun préfixe « Parler à … » n'est
+     affiché : la page elle-même est le contexte (le destinataire reste
+     annoncé aux lecteurs d'écran via `aria-label`). KOMAÏ Coding est une
+     **icône d'agent**, jamais un onglet.
 
 ---
 
@@ -143,10 +151,12 @@ La couleur **double** toujours une information déjà donnée par le texte/l'ic�
   classique, lisible. Les diagrammes (algorithme, méthode de calcul) sont rendus
   comme de **vrais diagrammes SVG** (`components/ui/MermaidFlow.tsx`), jamais du
   texte dans une fenêtre noire.
-- Ordre des onglets : **Chat** → **Entrées** → **Travail en direct** (auto au
-  lancement) → **Résultats** → **Conformité** (courbe d'évolution du score de
-  fin de run) → **Apprentissage** (fichiers de rejeu/exemple téléchargeables) →
-  **Compétences** (synthétisées au fil des itérations) → **Logs** (menu au
+- Ordre des onglets : **Chat** → **Résultats** → **Flux** (3ᵉ, méta-agents
+  détaillés en sous-flux uniquement) → **Entrées** → **Travail en direct**
+  (auto au lancement) → **Conformité** (courbe d'évolution du score de fin de
+  run) → **Apprentissage** (fichiers de rejeu/exemple téléchargeables) →
+  **Compétences** (liste **cliquable** : sélectionner une compétence affiche
+  son contenu — origine et apprentissages appliqués) → **Logs** (menu au
   survol : remarques / juge / apprentissages) → **Présentation** (README). En
   l'absence de contenu, une courte définition de l'onglet est affichée.
 - Le nom de l'agent apparaît dans la TopBar quand son titre en page disparaît au
@@ -248,19 +258,32 @@ quatre rôles :
 > jour comme de nuit**, les plages de confort de l'utilisateur — arbitrage entre
 > température, humidité, contraintes mécaniques, etc.
 
-### 10.2 Trois vues bout-en-bout (SOTA de la lisibilité) — feuille de route
-Pour que l'espace de variables (le « tenseur nommé ») soit compris intuitivement :
+### 10.2 Trois vues bout-en-bout (SOTA de la lisibilité) — onglet « Variables »
+L'onglet principal **« Variables »** (`components/system/VariablesView.tsx`,
+données : `core/variables.ts`) rend l'espace de variables en trois vues, toutes
+pilotées par le **sélecteur de scénario** (rangée de filtres au-dessus) :
 
-1. **Graphe de nœuds porté** (métaphore Grasshopper / Unreal Blueprints) :
-   variables et fonctions comme nœuds reliés — le graphe de calcul lui-même.
-2. **Jauges « bullet » de conformité** (Stephen Few) + sparklines : chaque
-   performance montrée contre sa plage cible, d'un coup d'œil.
-3. **Matrice variables × scénarios** (heatmap) : le tenseur nommé rendu tel
-   quel — lignes = variables, colonnes = scénarios saisonniers/jour-nuit.
+1. **A — Graphe de nœuds porté** (métaphore Grasshopper / Unreal Blueprints) :
+   les variables en nœuds, colonnes par rôle (environnant → compromis → état →
+   performance), fils = dépendances de calcul. Cliquer une variable **surligne
+   sa chaîne amont** (« d'où vient cette valeur ? »). Textes enroulés, valeur du
+   scénario sélectionné dans chaque nœud, liseré de couleur de rôle.
+2. **B — Jauges « bullet » de conformité** (Stephen Few) + sparklines : chaque
+   performance contre sa **bande de zone de conformité**, un point par scénario
+   (vert/rouge + icône + texte du verdict, scénarios hors zone nommés).
+3. **C — Matrice variables × scénarios** (heatmap) : le tenseur nommé rendu tel
+   quel — lignes = variables groupées par rôle, colonnes = scénarios ; couleur
+   **séquentielle une teinte normalisée par ligne** (les lignes de compromis se
+   lisent PLATES : constantes par construction), **valeurs visibles dans chaque
+   cellule** (la matrice est aussi la vue-table), verdict ✓/✗ par cellule de
+   performance, colonne du scénario sélectionné soulignée.
 
-Ces trois vues sont la **traduction UI** exigée par le principe §1.2 pour la
-capacité d'optimisation à venir ; §9 en est déjà la première étape (flux, pas à
-pas, conformité).
+Les couleurs de rôle sont une palette catégorielle **validée** (bande de
+lightness, plancher de chroma, séparation daltonisme ΔE ≥ 8, plancher vision
+normale ΔE ≥ 15, contraste ≥ 3:1 — modes clair et sombre) définie une seule
+fois dans `core/variables.ts` (`ROLE_COLORS`), toujours doublée du nom écrit du
+rôle. §9 (flux, pas à pas, conformité) et cet onglet forment la traduction UI
+exigée par le principe §1.2 pour la capacité d'optimisation à venir.
 
 ---
 
@@ -300,6 +323,8 @@ Dégradés radiaux du thème actif + blob lumineux `blur-[100px]` en
 | Rendu Markdown + liens sourcés | `apps/web/src/components/ui/Markdown.tsx` |
 | Rendu des diagrammes Mermaid → SVG | `apps/web/src/components/ui/MermaidFlow.tsx` |
 | Couleurs & icônes de flux, environnants sourcés | `apps/web/src/core/mbse.ts` |
+| Tenseur nommé : rôles, scénarios, couleurs de rôle, `fmtValue` | `apps/web/src/core/variables.ts` |
+| Vues A/B/C de l'espace de variables | `apps/web/src/components/system/VariablesView.tsx` |
 | Formules physiques | `apps/web/src/core/simulators.ts` |
 | Types partagés (dont `SourcedFact`, `SotaSource`) | `apps/web/src/core/types.ts` |
 | Diagramme MBSE (Flux fonctionnel) | `apps/web/src/components/system/SystemView.tsx` |

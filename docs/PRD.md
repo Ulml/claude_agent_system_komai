@@ -226,3 +226,8 @@ onglet *Apprentissage* de chaque page agent.
 - Mode démo local intégral sans clé ni backend.
 - Code lisible par un développeur peu expérimenté en agentic coding :
   commentaires d'intention en tête de chaque fichier, SSOT systématique.
+- **Réduction systématique de la dette de compréhension** : toute
+  fonctionnalité est livrée avec sa traduction dans l'UI qui minimise la
+  dette de compréhension de l'utilisateur humain, d'après les connaissances
+  SOTA (voir `docs/DESIGN.md` §1.2) — ex. l'espace de variables rendu en
+  tenseur nommé (graphe porté, jauges bullet, matrice variables × scénarios).

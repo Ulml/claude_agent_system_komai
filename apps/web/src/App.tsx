@@ -17,6 +17,7 @@ import AgentDesktop from '@/components/desktop/AgentDesktop';
 import FolderView from '@/components/desktop/FolderView';
 import FluxView from '@/components/flux/FluxView';
 import SystemView from '@/components/system/SystemView';
+import VariablesView from '@/components/system/VariablesView';
 import AgentPage from '@/components/agent/AgentPage';
 import KomaCodingView from '@/components/koma/KomaCodingView';
 import SettingsModal from '@/components/modals/SettingsModal';
@@ -33,6 +34,7 @@ const ActiveView: React.FC = () => {
   }
   if (view.kind === 'tab' && view.tab === 'FLUX') return <FluxView />;
   if (view.kind === 'tab' && view.tab === 'SYSTEM') return <SystemView />;
+  if (view.kind === 'tab' && view.tab === 'VARIABLES') return <VariablesView />;
   // HOME: a folder opened inline replaces the desktop (no visible difference);
   // the top-left arrow navigates back up.
   return openFolderId ? <FolderView /> : <AgentDesktop />;
