@@ -132,3 +132,31 @@ onglet *Apprentissage* de chaque page agent.
 - Mode démo local intégral sans clé ni backend.
 - Code lisible par un développeur peu expérimenté en agentic coding :
   commentaires d'intention en tête de chaque fichier, SSOT systématique.
+
+## 10. Pipeline produit — le système agentique de modélisation (tenseur)
+
+Sur demande de conception d'un produit (accueil ou Orchestrateur),
+l'orchestrateur **crée le système agentique** qui modélise le produit —
+agnostique du produit demandé (rien n'est codé en dur) :
+
+1. **Planificateur** → planning général ; **réutilisé** pour le planning
+   détaillé (chaque étape raffinée en sous-étapes) ;
+2. **Recherche produit** → PRD/TRD (composants, liaisons, grandeurs, unités —
+   tout ce que le graphe produit contiendra) ;
+3. **Conception** → graphe de TOUS les composants (depuis la TRD) ;
+4. **Fabrication** → graphe d'assemblage (arêtes « entre dans ») ;
+5. **Grandeurs** → matrices de valeurs par composant (couches du tenseur :
+   coût, masse, distance…) + matrice des unités ;
+6. **Calcul** → cumul de chaque couche le long de l'assemblage (roll-up réel,
+   `core/tensor.ts`) → graphe des grandeurs cumulées.
+
+**Modèle systématique** (chaque étape, sans exception) : matrice d'adjacence
++ graphe (dérivé de la matrice — SSOT) + matrice des unités + listes des
+désignations. UI : onglet **Produit** (`components/product/ProductView.tsx`),
+une section par étape avec les 4 représentations, et la section **Cumul** :
+sélecteur de couche + graphe cumulé + matrice nœuds × couches.
+
+Contenu produit via le LLM lié (prompts JSON stricts,
+`core/productPipeline.ts`) ; sans clé API, repli démo générique déterministe
+(clairement étiqueté). Le flux des 7 tâches contractualisées est visible dans
+« Flux » ; les agents dans le dossier « Équipe produit ».

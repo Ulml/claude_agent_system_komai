@@ -344,7 +344,7 @@ export interface RepoFile {
 
 /** Top-level views reachable from the navigation tabs above the meta-chat.
  *  KOMAÏ Coding is an agent icon like any other — it is NOT a top tab. */
-export type MainTab = 'HOME' | 'FLUX';
+export type MainTab = 'HOME' | 'FLUX' | 'PRODUCT';
 
 export type View =
   | { kind: 'tab'; tab: MainTab }

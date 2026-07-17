@@ -45,6 +45,14 @@ import {
 } from '@/core/seed';
 import { agentMethods } from '@/core/agent_methods';
 import { decomposeGoal, runFlowLocally } from '@/core/orchestrator';
+import {
+  buildPipelineAgents,
+  buildPipelineTasks,
+  PRODUCT_TRIGGER,
+  runProductPipeline,
+  type PipelineProgress,
+} from '@/core/productPipeline';
+import type { ProductModel } from '@/core/tensor';
 import { proposeMetaNodeForScope, proposeMetaNodes } from '@/core/curator';
 import { generateText } from '@/services/llm';
 import { persistProject } from '@/services/firebase';
@@ -121,6 +129,11 @@ interface AppContextType {
   visibleTasks: TaskNode[]; // perimeter-filtered: hidden tasks become meta-tasks
   runProjectFlow: () => void;
   isFlowRunning: boolean;
+
+  // Pipeline produit — le système agentique de modélisation (onglet Produit)
+  productModel: ProductModel | null;
+  pipelineProgress: PipelineProgress | null;
+  runProductDesign: (request: string) => void;
 
   // Live work & learning
   workEvents: WorkEvent[];
@@ -458,6 +471,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   /* ---------------------------- Flow runner ---------------------------- */
 
+  /* ---- Pipeline produit (système agentique de modélisation) ---- */
+  const [productModel, setProductModel] = useState<ProductModel | null>(null);
+  const [pipelineProgress, setPipelineProgress] = useState<PipelineProgress | null>(null);
+
   const runProjectFlow = useCallback(() => {
     if (isFlowRunning || !selectedProjectId) return;
     const flow = tasks.filter((task) => task.projectId === selectedProjectId && task.status !== 'done');
@@ -470,6 +487,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       onDone: () => setIsFlowRunning(false),
     });
   }, [isFlowRunning, selectedProjectId, tasks]);
+
+  /**
+   * PIPELINE PRODUIT : l'orchestrateur CRÉE le système agentique
+   * (planificateur réutilisé pour le détail, recherche PRD/TRD, conception,
+   * fabrication, grandeurs, calcul), contractualise le flux de tâches, puis
+   * exécute le pipeline qui construit le ProductModel (onglet « Produit ») —
+   * agnostique du produit demandé.
+   */
+  const runProductDesign = useCallback(
+    (request: string) => {
+      if (!selectedProjectId || pipelineProgress) return;
+      const orch = agents.find((a) => a.id === 'orchestrator');
+      const binding =
+        orch?.llmBinding ?? { providerId: providers[0]?.id ?? '', model: providers[0]?.models?.[0] ?? '' };
+
+      // 1. L'orchestrateur crée les agents du pipeline (harnais standard,
+      //    méthode conforme) et les range dans un dossier dédié.
+      const pipelineAgents = buildPipelineAgents(binding);
+      pipelineAgents.forEach((a) => createAgent(a));
+      createFolder('Équipe produit', pipelineAgents.map((a) => a.id));
+
+      // 2. Le flux de tâches contractualisé (visible dans « Flux »).
+      const flow = buildPipelineTasks(selectedProjectId, request, pipelineAgents);
+      setTasks((prev) => [...prev, ...flow]);
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === selectedProjectId
+            ? {
+                ...p,
+                agentIds: [...new Set([...p.agentIds, ...pipelineAgents.map((a) => a.id)])],
+                perimeters: p.perimeters.map((per) =>
+                  per.role === 'owner' ? { ...per, taskIds: [...per.taskIds, ...flow.map((task) => task.id)] } : per
+                ),
+              }
+            : p
+        )
+      );
+      setIsFlowRunning(true);
+      cancelFlowRef.current = runFlowLocally(flow, {
+        onTaskUpdate: (updated) => setTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task))),
+        onWorkEvent: (event) => setWorkEvents((prev) => [...prev, event]),
+        onDone: () => setIsFlowRunning(false),
+      });
+
+      // 3. Le pipeline réel construit le modèle (LLM lié, ou repli démo).
+      const provider = providers.find((p) => p.id === binding.providerId);
+      setProductModel(null);
+      setPipelineProgress({ step: 1, label: 'Planning général', agentName: 'Planificateur' });
+      void runProductPipeline(request, { provider, model: binding.model }, (p) => setPipelineProgress(p))
+        .then((model) => setProductModel(model))
+        .catch((err) => console.error('Pipeline produit:', err))
+        .finally(() => setPipelineProgress(null));
+
+      // 4. L'utilisateur suit le résultat dans l'onglet « Produit ».
+      setView({ kind: 'tab', tab: 'PRODUCT' });
+    },
+    [selectedProjectId, pipelineProgress, agents, providers, createAgent, createFolder]
+  );
 
   /* ----------------------------- Meta-chat ----------------------------- */
 
@@ -490,7 +565,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // — ORCHESTRATEUR: a goal sent while the project's flow is empty
       //   generates the contracted task flow (visible in « Flux »).
       let flowNote = '';
-      if (target.id === 'orchestrator' && selectedProjectId) {
+      // — CONCEPTION D'UN PRODUIT : l'orchestrateur crée le système agentique
+      //   de modélisation (planning, PRD/TRD, graphes, tenseur de grandeurs).
+      //   Déclenchable depuis l'accueil (LLM général) ou l'Orchestrateur.
+      if (
+        (target.id === 'orchestrator' || target.id === 'system-llm') &&
+        selectedProjectId &&
+        PRODUCT_TRIGGER.test(text) &&
+        !pipelineProgress
+      ) {
+        runProductDesign(text);
+        flowNote = `\n\n→ Système agentique créé (Équipe produit) : 7 tâches contractualisées (onglet Flux), modèle en construction (onglet Produit).`;
+      } else if (target.id === 'orchestrator' && selectedProjectId) {
         const hasTasks = tasks.some((task) => task.projectId === selectedProjectId);
         if (!hasTasks) {
           const project = projects.find((p) => p.id === selectedProjectId);
@@ -550,7 +636,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsChatLoading(false);
       }
     },
-    [agents, chatTarget, providers, selectedProjectId, tasks, projects, requestCuratorProposals]
+    [agents, chatTarget, providers, selectedProjectId, tasks, projects, requestCuratorProposals, pipelineProgress, runProductDesign]
   );
 
   /* --------------------------- LLM providers --------------------------- */
@@ -620,6 +706,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     visibleTasks,
     runProjectFlow,
     isFlowRunning,
+    productModel,
+    pipelineProgress,
+    runProductDesign,
     workEvents,
     learning,
     messages,
