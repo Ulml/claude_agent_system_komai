@@ -241,16 +241,19 @@ comprendre d'un coup d'œil**. Le choix retenu est le **tenseur nommé** (espace
 de variables + graphe de fonctions, à la OpenMDAO) plutôt que des tenseurs
 bruts : les dimensions portent des **noms lisibles**.
 
-### 10.1 Taxonomie des variables (4 rôles)
+### 10.1 Taxonomie des variables (5 rôles — la chaîne va jusqu'à l'humain)
 Chaque variable de chaque agent du flux, et le flux lui-même, se range en un des
-quatre rôles :
+cinq rôles. Le tenseur est **de bout en bout** : il ne s'arrête pas aux
+performances déduites, il aboutit aux **critères de confort de l'utilisateur
+humain** :
 
 | Rôle | Nature | Exemples | Qui la fixe |
 | --- | --- | --- | --- |
 | **environnant** | subie, profil temporel (saison × jour/nuit) | `T_ext`, `HR_ext`, `S_k`, `L_ext` | l'environnement (recherche sourcée) |
 | **compromis** | **libre, résolue par l'optimiseur** | épaisseur `e`, conductivité `λ`, masse surfacique `m″` | l'optimiseur (recherche du bon compromis) |
-| **état** | intermédiaire, calculée | `R`, `α`, `σ`, flux internes | les formules physiques |
-| **performance** | jugée vs conformité | flux de paroi, facteur de sécurité, bruit résiduel | comparaison à la zone de conformité |
+| **état** | intermédiaire, calculée | `R`, `α`, `σ`, `T_si` (surface du mur) | les formules physiques |
+| **performance** | **délivrée par le système — exigence DÉDUITE du confort humain, pas le critère lui-même** | flux de paroi `q`, tampon `m`, `SF`, `L_int` | déduction depuis les critères humains |
+| **confort** | **LE CRITÈRE HUMAIN, jugé dans SA zone** — ce que l'occupant ressent | `T_op` (température opérative, ASHRAE 55), `HR_int`, calme perçu `L_p`, sécurité `SF_h` | l'humain (caractérisé par l'environnant utilisateur) |
 
 > Note de vocabulaire (correction actée) : l'épaisseur du mur `e` et le `λ` du
 > matériau **ne sont pas choisis par le concepteur**. Ce sont des variables de
@@ -264,19 +267,32 @@ données : `core/variables.ts`) rend l'espace de variables en trois vues, toutes
 pilotées par le **sélecteur de scénario** (rangée de filtres au-dessus) :
 
 1. **A — Graphe de nœuds porté** (métaphore Grasshopper / Unreal Blueprints) :
-   les variables en nœuds, colonnes par rôle (environnant → compromis → état →
-   performance), fils = dépendances de calcul. Cliquer une variable **surligne
-   sa chaîne amont** (« d'où vient cette valeur ? »). Textes enroulés, valeur du
-   scénario sélectionné dans chaque nœud, liseré de couleur de rôle.
-2. **B — Jauges « bullet » de conformité** (Stephen Few) + sparklines : chaque
-   performance contre sa **bande de zone de conformité**, un point par scénario
+   les variables en nœuds, **cinq colonnes de rôle** (environnant → compromis →
+   état → performance → **confort humain**), fils = dépendances de calcul.
+   Cliquer une variable **surligne sa chaîne amont** (« d'où vient cette
+   valeur ? »). Textes enroulés, valeur du scénario sélectionné dans chaque
+   nœud, liseré de couleur de rôle.
+2. **Calcul pas à pas — aucune boîte noire** : sous la vue A, la chaîne
+   complète de la variable sélectionnée (par défaut `T_op`, le premier critère
+   humain), en ordre topologique : pour chaque étape, la **formule symbolique**
+   puis la **substitution numérique** du scénario (ex. `T_si = 19 + (−7 − 19) ×
+   0.13 / 0.77 = 14.6 °C`) et le verdict de conformité. L'utilisateur de
+   l'application peut ré-expliquer lui-même comment on arrive au résultat.
+3. **B — Jauges « bullet » de conformité** (Stephen Few) + sparklines : les
+   **critères humains d'abord**, puis les exigences déduites (performances),
+   chacun contre sa **bande de zone de conformité**, un point par scénario
    (vert/rouge + icône + texte du verdict, scénarios hors zone nommés).
-3. **C — Matrice variables × scénarios** (heatmap) : le tenseur nommé rendu tel
+4. **C — Matrice variables × scénarios** (heatmap) : le tenseur nommé rendu tel
    quel — lignes = variables groupées par rôle, colonnes = scénarios ; couleur
    **séquentielle une teinte normalisée par ligne** (les lignes de compromis se
    lisent PLATES : constantes par construction), **valeurs visibles dans chaque
-   cellule** (la matrice est aussi la vue-table), verdict ✓/✗ par cellule de
-   performance, colonne du scénario sélectionné soulignée.
+   cellule** (la matrice est aussi la vue-table), verdict ✓/✗ par cellule
+   jugée, colonne du scénario sélectionné soulignée.
+5. **D — Conclusions pour l'optimiseur** : pour chaque critère hors zone, les
+   scénarios concernés avec leurs valeurs, les **leviers de compromis** de sa
+   chaîne (calculés depuis le graphe de dépendances, ex. `[e, λ]`) et le sens
+   de l'action ; plus la note de conflit entre leviers (isoler ↔ masse ↔
+   structure) — la base de l'arbitrage que l'optimiseur devra rendre.
 
 Les couleurs de rôle sont une palette catégorielle **validée** (bande de
 lightness, plancher de chroma, séparation daltonisme ΔE ≥ 8, plancher vision
