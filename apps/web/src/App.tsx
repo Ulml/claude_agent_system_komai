@@ -16,6 +16,7 @@ import MetaChatDock from '@/components/chat/MetaChatDock';
 import AgentDesktop from '@/components/desktop/AgentDesktop';
 import FolderView from '@/components/desktop/FolderView';
 import FluxView from '@/components/flux/FluxView';
+import ProductView from '@/components/product/ProductView';
 import AgentPage from '@/components/agent/AgentPage';
 import KomaCodingView from '@/components/koma/KomaCodingView';
 import SettingsModal from '@/components/modals/SettingsModal';
@@ -31,6 +32,7 @@ const ActiveView: React.FC = () => {
     if (agent) return <AgentPage agent={agent} />;
   }
   if (view.kind === 'tab' && view.tab === 'FLUX') return <FluxView />;
+  if (view.kind === 'tab' && view.tab === 'PRODUCT') return <ProductView />;
   // HOME: a folder opened inline replaces the desktop (no visible difference);
   // the top-left arrow navigates back up.
   return openFolderId ? <FolderView /> : <AgentDesktop />;

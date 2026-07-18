@@ -20,6 +20,7 @@ import type { AgentTabId, MainTab } from '@/core/types';
 const HOME_TABS: { id: MainTab; labelKey: string }[] = [
   { id: 'HOME', labelKey: 'home' },
   { id: 'FLUX', labelKey: 'flux' },
+  { id: 'PRODUCT', labelKey: 'product' },
 ];
 
 const AGENT_TABS: { id: AgentTabId; labelKey: string }[] = [
