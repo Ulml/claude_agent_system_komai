@@ -33,6 +33,8 @@ const wrap = (text: string, maxChars: number): string[] => {
   return lines;
 };
 
+export const TYPE_COLORS = ['#0284c7', '#7c3aed', '#0d9488', '#c2410c', '#a21caf'];
+
 const DagGraph: React.FC<{ model: MatrixModel; values?: number[]; valueUnit?: string; ariaLabel: string }> = ({
   model,
   values,
@@ -121,6 +123,16 @@ const DagGraph: React.FC<{ model: MatrixModel; values?: number[]; valueUnit?: st
               {values ? ` — ${fmtValue(values[i])} ${valueUnit ?? ''}` : ''}
             </title>
             <rect x={pos[i].x} y={pos[i].y} width={NODE_W} height={heights[i]} rx={11} fill={fill} stroke={stroke} strokeWidth={1.2} />
+            {model.nodeTypes && (
+              <rect
+                x={pos[i].x}
+                y={pos[i].y + 5}
+                width={4}
+                height={heights[i] - 10}
+                rx={2}
+                fill={TYPE_COLORS[[...new Set(model.nodeTypes)].indexOf(model.nodeTypes[i]) % TYPE_COLORS.length]}
+              />
+            )}
             <text x={pos[i].x + 10} y={pos[i].y + 10 + LINE_H - 3} fontSize="10" fontWeight={700} fill={textColor}>
               {lines[i].map((ln, li) => (
                 <tspan key={li} x={pos[i].x + 10} dy={li === 0 ? 0 : LINE_H}>

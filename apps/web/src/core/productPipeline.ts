@@ -26,11 +26,15 @@ import { Boxes, Calculator, ClipboardList, Factory, Ruler, Search } from 'lucide
 import type { AgentProfile, LLMProvider, TaskNode } from './types';
 import { generateText } from '@/services/llm';
 import {
-  cumulateLayer,
+  cumulativeCurve,
+  earliestFinish,
+  latestStart,
+  propagateValue,
+  totalQuantities,
   validateMatrixModel,
   type MatrixModel,
   type ProductModel,
-  type QuantityLayer,
+  type TensorLayer,
 } from './tensor';
 
 let uid = 0;
@@ -224,244 +228,213 @@ const chain = (n: number): number[][] =>
 const unitFill = (rows: number, cols: number, unit: string): string[][] =>
   Array.from({ length: rows }, () => Array.from({ length: cols }, () => unit));
 
-/* ---- step 1: planning général ---- */
+/* ---- step 1: planning général (nb1 cellule 1 : chaîne d'étapes) ---- */
 
 interface PlanJson { steps: string[]; adjacency: number[][] }
 
 const GENERIC_PHASES = [
-  'Cahier des charges (PRD)',
-  'Recherche & TRD',
+  'Idée',
+  'Étude de faisabilité',
   'Conception architecturale',
-  'Conception détaillée',
-  'Prototypage',
-  'Tests & validation',
-  'Lancement de fabrication',
-  'Livraison',
+  'Permis / autorisations',
+  'Appel d’offres',
+  'Choix des fournisseurs',
+  'Planification détaillée',
+  'Préparation de la fabrication',
+  'Lancement de la fabrication',
 ];
 
 async function stepPlanning(deps: LlmDeps, request: string): Promise<{ m: MatrixModel; simulated: boolean }> {
   const json = await askJson<PlanJson>(
     deps,
     'Tu es un planificateur de développement produit. Réponds UNIQUEMENT en JSON strict.',
-    `Produit : « ${request} ». Donne le planning général du projet en JSON : {"steps": ["…"], "adjacency": [[0|1,…],…]} où adjacency[i][j]=1 si l'étape i précède directement l'étape j. 6 à 10 étapes, de l'expression du besoin à la livraison, en français.`
+    `Produit : « ${request} ». Planning général en JSON : {"steps": ["…"], "adjacency": [[0|1]]} (adjacency[i][j]=1 si i précède j), de l'idée au lancement de la fabrication, 8-11 étapes, en français.`
   );
   const steps = json?.steps?.length ? json.steps : GENERIC_PHASES;
   const adjacency = json?.adjacency?.length === steps.length ? json.adjacency : chain(steps.length);
-  const m: MatrixModel = {
-    id: nextId('mm-plan'),
-    kind: 'planning',
-    title: 'Planning général',
-    rows: steps,
-    cols: steps,
-    adjacency,
-    units: unitFill(steps.length, steps.length, 'précédence (0/1)'),
-    directed: true,
+  return {
+    m: { id: nextId('mm-plan'), kind: 'planning', title: 'Planning général', rows: steps, cols: steps, adjacency, units: unitFill(steps.length, steps.length, 'précédence (0/1)'), directed: true },
+    simulated: !json,
   };
-  return { m, simulated: !json };
 }
 
-/* ---- step 2: planning détaillé (raffinage de CHAQUE étape) ---- */
+/* ---- step 2: planning détaillé (nb1 cellule 3 : HIÉRARCHIE
+        étape ← détail ← sous-détail, le MÊME planificateur raffine) ---- */
 
-interface DetailJson { substeps: { phase: string; steps: string[] }[] }
+interface DetailJson { details: { phase: string; items: { name: string; subs: string[] }[] }[] }
 
 async function stepPlanningDetail(deps: LlmDeps, request: string, planning: MatrixModel): Promise<{ m: MatrixModel; simulated: boolean }> {
   const json = await askJson<DetailJson>(
     deps,
     'Tu es un planificateur de développement produit. Réponds UNIQUEMENT en JSON strict.',
-    `Produit : « ${request} ». Planning général : ${JSON.stringify(planning.rows)}. Raffine CHAQUE étape en 2 à 4 sous-étapes concrètes, en JSON : {"substeps": [{"phase": "…", "steps": ["…"]}]} dans l'ordre des phases, en français.`
+    `Produit : « ${request} ». Étapes : ${JSON.stringify(planning.rows)}. Pour CHAQUE étape, 2-4 éléments nécessaires (détails), chacun avec 2 sous-éléments, en JSON : {"details":[{"phase":"…","items":[{"name":"…","subs":["…","…"]}]}]} dans l'ordre, en français.`
   );
-  const groups: { phase: string; steps: string[] }[] =
-    json?.substeps?.length === planning.rows.length
-      ? json.substeps
+  const groups =
+    json?.details?.length === planning.rows.length
+      ? json.details
       : planning.rows.map((phase) => ({
           phase,
-          steps: [`${phase} — préparation`, `${phase} — exécution`, `${phase} — revue & validation`],
+          items: [
+            { name: `Préparer — ${phase}`, subs: ['Collecte des données', 'Parties prenantes'] },
+            { name: `Produire — ${phase}`, subs: ['Réalisation', 'Contrôle qualité'] },
+          ],
         }));
-  const rows = groups.flatMap((g) => g.steps.map((s) => `${g.phase} · ${s.replace(`${g.phase} — `, '')}`));
+  const rows: string[] = [...planning.rows];
+  const types: string[] = planning.rows.map(() => 'étape');
+  groups.forEach((g) => g.items.forEach((it) => {
+    rows.push(it.name); types.push('détail');
+    it.subs.forEach((sd) => { rows.push(`${sd} (${it.name})`); types.push('sous-détail'); });
+  }));
   const n = rows.length;
   const adjacency = Array.from({ length: n }, () => new Array<number>(n).fill(0));
-  // Chaîne à l'intérieur de chaque phase + liaison inter-phases selon le
-  // planning général (dernière sous-étape → première de la phase suivante).
-  let offset = 0;
-  const phaseStart: number[] = [];
-  const phaseEnd: number[] = [];
+  // chaîne des étapes (planning général)
+  planning.adjacency.forEach((row, i) => row.forEach((w, j) => { if (w !== 0) adjacency[i][j] = 1; }));
+  // détail → étape et sous-détail → détail (l'élément nécessaire ALIMENTE)
+  const idx = new Map(rows.map((r, i) => [r, i]));
   groups.forEach((g) => {
-    phaseStart.push(offset);
-    for (let i = 0; i < g.steps.length - 1; i++) adjacency[offset + i][offset + i + 1] = 1;
-    offset += g.steps.length;
-    phaseEnd.push(offset - 1);
+    const pi = idx.get(g.phase);
+    g.items.forEach((it) => {
+      const di = idx.get(it.name)!;
+      if (pi !== undefined) adjacency[di][pi] = 1;
+      it.subs.forEach((sd) => { adjacency[idx.get(`${sd} (${it.name})`)!][di] = 1; });
+    });
   });
-  planning.adjacency.forEach((row, i) =>
-    row.forEach((w, j) => {
-      if (w !== 0) adjacency[phaseEnd[i]][phaseStart[j]] = 1;
-    })
-  );
-  const m: MatrixModel = {
-    id: nextId('mm-detail'),
-    kind: 'planning-detail',
-    title: 'Planning détaillé',
-    rows,
-    cols: rows,
-    adjacency,
-    units: unitFill(n, n, 'précédence (0/1)'),
-    directed: true,
+  return {
+    m: { id: nextId('mm-det'), kind: 'planning-detail', title: 'Planning détaillé', rows, cols: rows, adjacency, units: unitFill(n, n, 'précédence (0/1)'), directed: true, nodeTypes: types },
+    simulated: !json,
   };
-  return { m, simulated: !json };
 }
 
-/* ---- step 3: recherche → PRD/TRD (composants + liaisons + grandeurs) ---- */
+/* ---- step 3: recherche → PRD/TRD (tout ce que contiennent les graphes) ---- */
 
 export interface TrdJson {
   prd: string;
-  components: { name: string; connections: string[]; quantities: Record<string, { value: number; unit: string }> }[];
-  layers: { id: string; name: string; unit: string }[];
+  components: { name: string; inputs: string[]; stage: string; qty: number; unit: string; price: number; priceUnit: string; massKg: number; distanceKm: number }[];
+  stages: { name: string; sub: string; days: number; dailyRate: number }[];
+  subs: string[];
 }
 
 function fallbackTrd(request: string): TrdJson {
   const h = hash(request);
-  // Architecture GÉNÉRIQUE de produit (agnostique) ; les valeurs sont
-  // pseudo-aléatoires déterministes — clairement étiquetées « démo ».
-  const names = [
-    'Structure porteuse',
-    'Enveloppe / carter',
-    'Module fonctionnel principal',
-    'Module fonctionnel secondaire',
-    'Alimentation / énergie',
-    'Commande & contrôle',
-    'Interface utilisateur',
+  const v = (i: number, f: number) => Math.round((((h >> (i % 24)) % 89) + 5) * f * 10) / 10;
+  const stages = [
+    { name: 'Préparation de la base', sub: 'Structure de base', days: v(1, 0.08), dailyRate: v(2, 8) },
+    { name: 'Assemblage principal', sub: 'Superstructure', days: v(3, 0.1), dailyRate: v(4, 8) },
+    { name: 'Équipements & finitions', sub: 'Intérieur / systèmes', days: v(5, 0.06), dailyRate: v(6, 8) },
   ];
-  const layers = [
-    { id: 'cout', name: 'Coût', unit: '€' },
-    { id: 'masse', name: 'Masse', unit: 'kg' },
-    { id: 'distance', name: 'Distance d’approvisionnement', unit: 'km' },
-  ];
-  const val = (i: number, l: number) => Math.round((((h >> (i + l * 3)) % 97) + 3) * (l === 0 ? 12 : l === 1 ? 0.8 : 25) * 10) / 10;
+  const names = ['Structure porteuse', 'Enveloppe / carter', 'Module fonctionnel principal', 'Module fonctionnel secondaire', 'Alimentation / énergie', 'Commande & contrôle', 'Interface utilisateur', 'Visserie & liaisons'];
   const components = names.map((name, i) => ({
     name,
-    connections: i === 0 ? [] : [names[Math.max(0, Math.floor(i / 2) - (i % 2))]],
-    quantities: Object.fromEntries(layers.map((l, li) => [l.id, { value: val(i, li), unit: l.unit }])),
+    inputs: [`Matière première — ${name}`, 'Plan de fabrication', i % 2 ? 'Outillage' : 'Traitement de surface'],
+    stage: stages[i % 3].name,
+    qty: v(i + 7, i % 3 === 0 ? 0.5 : 0.2),
+    unit: ['kg', 'unité', 'm'][i % 3],
+    price: v(i + 9, 6),
+    priceUnit: ['€/kg', '€/unité', '€/m'][i % 3],
+    massKg: v(i + 11, 0.15),
+    distanceKm: v(i + 13, 18),
   }));
-  const prd = `# PRD/TRD — ${request}\n\n> **Démo hors-ligne** : aucune clé API configurée. Structure générique de produit ; configurez une clé (Réglages) pour une recherche réelle du produit demandé.\n\n## Composants\n${names.map((n) => `- ${n}`).join('\n')}\n\n## Grandeurs suivies (couches du tenseur)\n${layers.map((l) => `- ${l.name} (${l.unit})`).join('\n')}`;
-  return { prd, components, layers };
+  const prd = `# PRD/TRD — ${request}\n\n> **Démo hors-ligne** : structure générique (pas de clé API). Configurez une clé (Réglages) pour une recherche réelle du produit.\n\n## Composants\n${components.map((c) => `- **${c.name}** — ${c.qty} ${c.unit}, ${c.price} ${c.priceUnit}, ${c.massKg} kg/u, appro ${c.distanceKm} km · entrées : ${c.inputs.join(', ')}`).join('\n')}\n\n## Étapes d'assemblage\n${stages.map((s) => `- ${s.name} → ${s.sub} (${s.days} j, ${s.dailyRate} €/j)`).join('\n')}`;
+  return { prd, components, stages, subs: [...new Set(stages.map((s) => s.sub))] };
 }
 
 async function stepTrd(deps: LlmDeps, request: string): Promise<{ trd: TrdJson; simulated: boolean }> {
   const json = await askJson<TrdJson>(
     deps,
     'Tu es un agent de recherche produit. Réponds UNIQUEMENT en JSON strict.',
-    `Produit demandé : « ${request} ». Recherche ses composants réels et rédige la TRD en JSON :\n{"prd": "PRD/TRD en markdown (résumé, exigences, composants, grandeurs)",\n "components": [{"name": "…", "connections": ["noms des composants liés"], "quantities": {"cout": {"value": n, "unit": "€"}, "masse": {"value": n, "unit": "kg"}, "distance": {"value": n, "unit": "km"}}}],\n "layers": [{"id": "cout", "name": "Coût", "unit": "€"}, {"id": "masse", "name": "Masse", "unit": "kg"}, {"id": "distance", "name": "Distance d’approvisionnement", "unit": "km"}]}\n6 à 14 composants, valeurs réalistes, en français. La TRD doit contenir TOUT ce que le graphe produit contiendra.`
+    `Produit : « ${request} ». Recherche ses composants RÉELS et rédige la TRD (tout ce que les graphes contiendront) en JSON :\n{"prd":"markdown PRD/TRD","components":[{"name":"…","inputs":["entrées nécessaires"],"stage":"étape d'assemblage","qty":n,"unit":"kg|m|L|unité","price":n,"priceUnit":"€/…","massKg":n,"distanceKm":n}],"stages":[{"name":"…","sub":"sous-ensemble","days":n,"dailyRate":n}],"subs":["sous-ensembles"]}\n8-16 composants, 4-8 étapes, 2-4 sous-ensembles, valeurs réalistes, en français.`
   );
-  const ok =
-    json?.components?.length &&
-    json.layers?.length &&
-    json.components.every((c) => c.name && c.quantities);
+  const ok = json?.components?.length && json.stages?.length && json.subs?.length &&
+    json.components.every((c) => c.name && c.stage && c.inputs) &&
+    json.components.every((c) => json.stages.some((s) => s.name === c.stage));
   return { trd: ok ? json! : fallbackTrd(request), simulated: !ok };
 }
 
-/* ---- step 4: conception → graphe produit (déduit de la TRD, code pur) ---- */
+/* ---- step 4: conception (nb1 cellule 5 : inputs → composant → atelier) ---- */
 
-function stepProduct(trd: TrdJson): MatrixModel {
-  const rows = trd.components.map((c) => c.name);
+function stepConception(trd: TrdJson): MatrixModel {
+  const comps = trd.components.map((c) => c.name);
+  const inputs = [...new Set(trd.components.flatMap((c) => c.inputs))];
+  const atelier = 'Atelier de fabrication';
+  const rows = [...inputs, ...comps, atelier];
+  const types = [...inputs.map(() => 'input'), ...comps.map(() => 'composant'), 'atelier'];
   const idx = new Map(rows.map((r, i) => [r, i]));
   const n = rows.length;
   const adjacency = Array.from({ length: n }, () => new Array<number>(n).fill(0));
-  trd.components.forEach((c, i) =>
-    c.connections.forEach((other) => {
-      const j = idx.get(other);
-      if (j !== undefined && j !== i) {
-        adjacency[i][j] = 1;
-        adjacency[j][i] = 1; // liaison structurelle non orientée
-      }
-    })
-  );
-  return {
-    id: nextId('mm-prod'),
-    kind: 'product',
-    title: 'Graphe des composants',
-    rows,
-    cols: rows,
-    adjacency,
-    units: unitFill(n, n, 'liaison (0/1)'),
-    directed: false,
-  };
-}
-
-/* ---- step 5: fabrication → graphe d'assemblage ---- */
-
-interface AssemblyJson { nodes: string[]; edges: [string, string][] }
-
-async function stepAssembly(deps: LlmDeps, request: string, product: MatrixModel): Promise<{ m: MatrixModel; simulated: boolean }> {
-  const json = await askJson<AssemblyJson>(
-    deps,
-    'Tu es un agent de fabrication (gammes de montage). Réponds UNIQUEMENT en JSON strict.',
-    `Produit : « ${request} ». Composants : ${JSON.stringify(product.rows)}. Donne le graphe d'assemblage en JSON : {"nodes": ["…tous les composants + sous-ensembles + produit final"], "edges": [["enfant","parent"],…]} où chaque arête signifie « entre dans ». Chaque composant doit aboutir (directement ou via des sous-ensembles) au produit final, en français.`
-  );
-  let nodes: string[];
-  let edges: [string, string][];
-  const valid =
-    json?.nodes?.length &&
-    json.edges?.length &&
-    product.rows.every((r) => json.nodes.includes(r)) &&
-    json.edges.every((e) => json.nodes.includes(e[0]) && json.nodes.includes(e[1]));
-  if (valid) {
-    nodes = json!.nodes;
-    edges = json!.edges;
-  } else {
-    // Repli générique : deux sous-ensembles équilibrés → produit final.
-    const half = Math.ceil(product.rows.length / 2);
-    const sub1 = 'Sous-ensemble A';
-    const sub2 = 'Sous-ensemble B';
-    const final = `Produit final — ${request}`;
-    nodes = [...product.rows, sub1, sub2, final];
-    edges = [
-      ...product.rows.map((r, i): [string, string] => [r, i < half ? sub1 : sub2]),
-      [sub1, final],
-      [sub2, final],
-    ];
-  }
-  const idx = new Map(nodes.map((r, i) => [r, i]));
-  const n = nodes.length;
-  const adjacency = Array.from({ length: n }, () => new Array<number>(n).fill(0));
-  edges.forEach(([a, b]) => {
-    const i = idx.get(a)!;
-    const j = idx.get(b)!;
-    if (i !== j) adjacency[i][j] = 1;
+  trd.components.forEach((c) => {
+    c.inputs.forEach((inp) => { adjacency[idx.get(inp)!][idx.get(c.name)!] = 1; });
+    adjacency[idx.get(c.name)!][idx.get(atelier)!] = 1;
   });
-  return {
-    m: {
-      id: nextId('mm-asm'),
-      kind: 'assembly',
-      title: 'Graphe d’assemblage',
-      rows: nodes,
-      cols: nodes,
-      adjacency,
-      units: unitFill(n, n, 'entre dans (0/1)'),
-      directed: true,
-    },
-    simulated: !valid,
-  };
+  return { id: nextId('mm-con'), kind: 'product', title: 'Conception des composants', rows, cols: rows, adjacency, units: unitFill(n, n, 'alimente (0/1)'), directed: true, nodeTypes: types };
 }
 
-/* ---- step 6: grandeurs → couches + matrice valeurs/unités (code pur) ---- */
+/* ---- step 5: assemblage (nb1 cellule 7-10 : composants → étapes →
+        sous-ensembles → produit, quantités + unités sur les arêtes) ---- */
 
-function stepQuantities(trd: TrdJson, product: MatrixModel): { layers: QuantityLayer[]; m: MatrixModel } {
-  const layers: QuantityLayer[] = trd.layers.map((l) => ({
-    id: l.id,
-    name: l.name,
-    unit: l.unit,
-    values: product.rows.map((r) => trd.components.find((c) => c.name === r)?.quantities[l.id]?.value ?? 0),
-  }));
-  const m: MatrixModel = {
-    id: nextId('mm-qty'),
-    kind: 'quantities',
-    title: 'Matrices des grandeurs (composants × couches)',
-    rows: product.rows,
-    cols: layers.map((l) => l.name),
-    adjacency: product.rows.map((_, i) => layers.map((l) => l.values[i])),
-    units: product.rows.map(() => layers.map((l) => l.unit)),
-    directed: false,
+function stepAssembly(trd: TrdJson, request: string): MatrixModel {
+  const final = `Produit final — ${request}`;
+  const comps = trd.components.map((c) => c.name);
+  const stages = trd.stages.map((s) => s.name);
+  const rows = [...comps, ...stages, ...trd.subs, final];
+  const types = [...comps.map(() => 'composant'), ...stages.map(() => 'étape'), ...trd.subs.map(() => 'sous-ensemble'), 'produit'];
+  const idx = new Map(rows.map((r, i) => [r, i]));
+  const n = rows.length;
+  const adjacency = Array.from({ length: n }, () => new Array<number>(n).fill(0));
+  const values = Array.from({ length: n }, () => new Array<number>(n).fill(0));
+  const units = unitFill(n, n, '');
+  trd.components.forEach((c) => {
+    const i = idx.get(c.name)!; const j = idx.get(c.stage)!;
+    adjacency[i][j] = 1; values[i][j] = c.qty; units[i][j] = c.unit;
+  });
+  trd.stages.forEach((s) => {
+    const i = idx.get(s.name)!; const j = idx.get(s.sub)!;
+    adjacency[i][j] = 1; values[i][j] = s.days; units[i][j] = 'jours';
+  });
+  trd.subs.forEach((sub) => {
+    const i = idx.get(sub)!; const j = idx.get(final)!;
+    adjacency[i][j] = 1; values[i][j] = 1; units[i][j] = 'unité';
+  });
+  return { id: nextId('mm-asm'), kind: 'assembly', title: 'Graphe d’assemblage', rows, cols: rows, adjacency, values, units, directed: true, nodeTypes: types };
+}
+
+/* ---- step 6: matrices des grandeurs — prix unitaires (diagonale, nb1
+        cellule 11-12) + couches du tenseur (nb2) ---- */
+
+function stepPrices(trd: TrdJson, assembly: MatrixModel): MatrixModel {
+  const n = assembly.rows.length;
+  const adjacency = Array.from({ length: n }, () => new Array<number>(n).fill(0));
+  const units = unitFill(n, n, '');
+  assembly.rows.forEach((r, i) => {
+    const c = trd.components.find((x) => x.name === r);
+    const s = trd.stages.find((x) => x.name === r);
+    if (c) { adjacency[i][i] = c.price; units[i][i] = c.priceUnit; }
+    if (s) { adjacency[i][i] = s.dailyRate; units[i][i] = '€/jour'; }
+  });
+  return { id: nextId('mm-prc'), kind: 'quantities', title: 'Prix unitaires (diagonale)', rows: assembly.rows, cols: assembly.cols, adjacency, units, directed: false, nodeTypes: assembly.nodeTypes };
+}
+
+/* ---- step 7: recyclage (nb1 cellule 13 : démontage → retour matériaux) ---- */
+
+async function stepRecycling(deps: LlmDeps, request: string, comps: string[]): Promise<{ m: MatrixModel; simulated: boolean }> {
+  interface RecJson { steps: string[]; materials: string[] }
+  const json = await askJson<RecJson>(
+    deps,
+    'Tu es un agent d’économie circulaire. Réponds UNIQUEMENT en JSON strict.',
+    `Produit : « ${request} ». Étapes de démontage/recyclage en JSON {"steps":["…5-6 étapes du produit au retour aux matériaux d'origine"],"materials":["matériaux d'origine récupérés"]}, en français.`
+  );
+  const steps = json?.steps?.length ? json.steps : [`Produit en fin de vie — ${request}`, 'Démontage des composants', 'Tri des matériaux', 'Traitement des matériaux', 'Recyclage', 'Retour aux matériaux d’origine'];
+  const mats = json?.materials?.length ? json.materials : ['Métaux', 'Minéraux', 'Polymères'];
+  const rows = [...steps, ...comps, ...mats];
+  const types = [...steps.map(() => 'étape'), ...comps.map(() => 'composant'), ...mats.map(() => 'matériau')];
+  const n = rows.length;
+  const adjacency = Array.from({ length: n }, () => new Array<number>(n).fill(0));
+  for (let i = 0; i < steps.length - 1; i++) adjacency[i][i + 1] = 1;
+  comps.forEach((_, k) => { adjacency[1][steps.length + k] = 1; adjacency[steps.length + k][2] = 1; });
+  mats.forEach((_, k) => { adjacency[steps.length - 2][steps.length + comps.length + k] = 1; });
+  return {
+    m: { id: nextId('mm-rec'), kind: 'planning', title: 'Démontage & recyclage', rows, cols: rows, adjacency, units: unitFill(n, n, 'flux (0/1)'), directed: true, nodeTypes: types },
+    simulated: !json,
   };
-  return { layers, m };
 }
 
 /* ------------------------------------------------------------------ */
@@ -474,10 +447,8 @@ export interface PipelineProgress {
   agentName: string;
 }
 
-/**
- * Exécute le pipeline de bout en bout et construit le ProductModel.
- * `onProgress` permet à l'UI de suivre chaque étape (agent au travail).
- */
+/** Exécute le pipeline de bout en bout — construit le ProductModel complet
+ *  (graphes nb1 + calcul Leontief/CPM/cumul temporel nb2). */
 export async function runProductPipeline(
   request: string,
   deps: LlmDeps,
@@ -485,42 +456,66 @@ export async function runProductPipeline(
 ): Promise<ProductModel> {
   onProgress({ step: 1, label: 'Planning général', agentName: 'Planificateur' });
   const p1 = await stepPlanning(deps, request);
-
   onProgress({ step: 2, label: 'Planning détaillé (raffinage par le même planificateur)', agentName: 'Planificateur' });
   const p2 = await stepPlanningDetail(deps, request, p1.m);
-
   onProgress({ step: 3, label: 'PRD/TRD du produit (recherche)', agentName: 'Recherche produit' });
   const p3 = await stepTrd(deps, request);
+  onProgress({ step: 4, label: 'Graphe de conception des composants', agentName: 'Conception' });
+  const conception = stepConception(p3.trd);
+  onProgress({ step: 5, label: 'Graphe d’assemblage (quantités + unités)', agentName: 'Fabrication' });
+  const assembly = stepAssembly(p3.trd, request);
+  onProgress({ step: 6, label: 'Matrices des grandeurs (prix, masse, distance)', agentName: 'Grandeurs' });
+  const prices = stepPrices(p3.trd, assembly);
+  const rec = await stepRecycling(deps, request, p3.trd.components.map((c) => c.name));
 
-  onProgress({ step: 4, label: 'Graphe des composants', agentName: 'Conception' });
-  const product = stepProduct(p3.trd);
-
-  onProgress({ step: 5, label: 'Graphe d’assemblage', agentName: 'Fabrication' });
-  const p5 = await stepAssembly(deps, request, product);
-
-  onProgress({ step: 6, label: 'Matrices des grandeurs', agentName: 'Grandeurs' });
-  const { layers, m: quantities } = stepQuantities(p3.trd, product);
-
-  onProgress({ step: 7, label: 'Cumul des grandeurs (calcul réel)', agentName: 'Calcul' });
-  const cumulated = layers.map((l) => cumulateLayer(p5.m, product.rows, l));
+  onProgress({ step: 7, label: 'Calcul : quantités totales, chemin critique, cumuls temporels', agentName: 'Calcul' });
+  // --- Le calcul RÉEL du notebook Canopy ---
+  const n = assembly.rows.length;
+  const T = assembly.values!;
+  const qReq = assembly.rows.map((r) => (r.startsWith('Produit final') ? 1 : 0));
+  const qTotal = totalQuantities(T, qReq);
+  // durées par nœud : composants ~0.5 j, étapes = jours TRD, ensembles 1 j
+  const nodeDelays = assembly.rows.map((r) => {
+    const s = p3.trd.stages.find((x) => x.name === r);
+    if (s) return Math.max(0.5, s.days);
+    return assembly.nodeTypes?.[assembly.rows.indexOf(r)] === 'composant' ? 0.5 : 1;
+  });
+  const transfer = T.map((row) => row.map((v) => (v > 0 ? 0.1 : 0)));
+  const ef = earliestFinish(nodeDelays, transfer, T);
+  const deadline = Math.max(...ef); // = fin au plus tôt du projet → le chemin le plus long a une marge nulle (critique)
+  const ls = latestStart(nodeDelays, transfer, T, deadline);
+  // couches : prix (diagonale), masse propagée, distance cumulée par unité
+  const pFinal = assembly.rows.map((_, i) => prices.adjacency[i][i]);
+  const mBase = assembly.rows.map((r) => p3.trd.components.find((c) => c.name === r)?.massKg ?? 0);
+  const mFinal = propagateValue(mBase, null, T);
+  const distDirect = T.map((row, i) =>
+    row.map((v) => (v > 0 ? (p3.trd.components.find((c) => c.name === assembly.rows[i])?.distanceKm ?? 0) : 0))
+  );
+  const dFinal = propagateValue(new Array<number>(n).fill(0), distDirect, T);
+  const layers: TensorLayer[] = [
+    { id: 'cout', name: 'Coût', unit: '€', final: pFinal },
+    { id: 'masse', name: 'Masse', unit: 'kg', final: mFinal },
+    { id: 'distance', name: 'Distance', unit: 'km', final: dFinal },
+  ];
+  const curves = layers.map((l) => ({ layerId: l.id, ...cumulativeCurve(l.final, qTotal, nodeDelays, ef) }));
 
   const model: ProductModel = {
     request,
     prd: p3.trd.prd,
     planning: p1.m,
     planningDetail: p2.m,
-    product,
-    assembly: p5.m,
-    quantities,
+    conception,
+    assembly,
+    prices,
+    recycling: rec.m,
+    qTotal,
+    schedule: { nodeDelays, ef, ls, deadline },
     layers,
-    cumulated,
+    curves,
     simulated: p1.simulated || p3.simulated,
   };
-
-  // Auto-contrôle : les 4 représentations de chaque étape sont cohérentes.
-  const problems = [model.planning, model.planningDetail, model.product, model.assembly, model.quantities].flatMap(
-    (m) => validateMatrixModel(m).map((p) => `${m.title}: ${p}`)
-  );
+  const problems = [model.planning, model.planningDetail, model.conception, model.assembly, model.prices, model.recycling]
+    .flatMap((m) => validateMatrixModel(m).map((p) => `${m.title}: ${p}`));
   if (problems.length > 0) throw new Error(`Modèle incohérent — ${problems.join(' · ')}`);
   return model;
 }
